@@ -27,8 +27,8 @@ In case of M_xa we generalize for A = (A_x | A_y)^T so M_xa (M_pa) becomes
 M_xa = [[ M_xa |  0   ]
         [  0   | M_xa ]]
 """
-M_xv = np.hstack([np.arange(1, N + 1)] * 2)
-M_xa = scipy.linalg.toeplitz(np.arange(1, N + 1), np.zeros(N))
+M_xv = np.hstack([np.arange(1, N + 1)] * 2) * DT
+M_xa = scipy.linalg.toeplitz(0.5 * (np.arange(N, 0, -1) - 1) * DT ** 2, np.zeros(N))
 M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
 ).reshape(2 * N ,2 * N)
@@ -76,10 +76,8 @@ def qp_solution(goal_vec, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = (0.5 + M_xa ** 2 * DT ** 4) * np.eye(2 * N)
-    opt_V = M_xa.T @ (
-        -np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N) * DT
-    ) * DT ** 2
+    opt_M = (0.5 + M_xa ** 2 * DT ** 2) * np.eye(2 * N)
+    opt_V = M_xa.T @ (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N))
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
@@ -91,14 +89,15 @@ def qp_solution_planning(reference_plan, agent_vel):
     Optimize navigation by using a reference plan for the upcoming horizon.
 
     Args:
-        goal_vec (numpy.ndarray): vector in 2 plane going from current position to goal
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
     Return:
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = (0.5 + M_xa ** 2 * DT ** 4) * np.eye(2 * N)
-    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N) * DT) * DT ** 2
+    opt_M = (0.5 + M_xa ** 2 * DT ** 2) * np.eye(2 * N)
+    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
@@ -118,8 +117,8 @@ def qp_solution_terminal(reference_plan, agent_vel, goal_vec, step):
             eleration) to be applied in the next step
     """
     # horizon = min(MAX_STEPS - step, N) if "-dh" in sys.argv else N
-    opt_M = (0.5 + M_xa ** 2 * DT ** 4) * np.eye(2 * N)
-    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N) * DT) * DT ** 2
+    opt_M = (0.5 + M_xa ** 2 * DT ** 2) * np.eye(2 * N)
+    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
     acc_b = np.ones(2 * N) * (AGENT_MAX_ACC +  0.5) * DT
 
     if np.linalg.norm(goal_vec) <= DIST_TO_STOP_FROM_MAX + AGENT_MAX_VEL * DT:
@@ -153,7 +152,7 @@ for i in range(400):
     else:
         goal_vec, agent_vel = obs[:2], obs[-2:]
 
-    if "-lp" or "-tc" in sys.argv:
+    if "-lp" in sys.argv or "-tc" in sys.argv:
         planned_steps = planning_steps(goal_vec)
         steps= np.zeros((N, 2))
         steps[:, 0] = planned_steps[:N]
@@ -170,7 +169,7 @@ for i in range(400):
 
     obs, reward, terminated, truncated, info = env.step(action)
     return_ += reward
-    env.render()
+    None if "-nr" in sys.argv else env.render()
     if terminated or truncated:
         print(return_)
         returns.append(return_)
