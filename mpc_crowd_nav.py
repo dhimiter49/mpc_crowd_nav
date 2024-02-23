@@ -1,5 +1,6 @@
 import sys
 import fancy_gym
+import gymnasium as gym
 import numpy as np
 import scipy
 from numpy import ndarray
@@ -28,14 +29,18 @@ M_xa = [[ M_xa |  0   ]
         [  0   | M_xa ]]
 """
 M_xv = np.hstack([np.arange(1, N + 1)] * 2) * DT
-M_xa = scipy.linalg.toeplitz(0.5 * (np.arange(N, 0, -1) - 1) * DT ** 2, np.zeros(N))
+M_xa = scipy.linalg.toeplitz(np.arange(N, 0, -1) * DT ** 2, np.zeros(N))
+M_xa[0] = (3 * N - 1) / 6 * DT ** 2
+M_xa[-1] = 1 / 6 * DT ** 2
 M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
 ).reshape(2 * N ,2 * N)
-M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N))
+M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
 M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
 ).reshape(2 * N ,2 * N)
+M_va[0] *= 0.5
+M_va[-1] = 0.5
 
 
 def planning_steps(goal_vec):
