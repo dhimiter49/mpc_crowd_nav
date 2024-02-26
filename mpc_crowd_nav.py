@@ -36,11 +36,11 @@ M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
 ).reshape(2 * N ,2 * N)
 M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
+M_va[0] *= 0.5
+M_va[-1] = 0.5
 M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
 ).reshape(2 * N ,2 * N)
-M_va[0] *= 0.5
-M_va[-1] = 0.5
 
 
 def planning_steps(goal_vec):
@@ -59,7 +59,12 @@ def planning_steps(goal_vec):
             and the second N elements are the y-coords
     """
     steps = np.zeros((N, 2))
-    oneD_steps = np.arange(0, np.linalg.norm(goal_vec), AGENT_MAX_VEL * DT)
+    if AGENT_MAX_VEL * DT > np.linalg.norm(goal_vec):
+        oneD_steps = np.array([np.linalg.norm(goal_vec)])
+    else:
+        oneD_steps = np.arange(
+            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), AGENT_MAX_VEL * DT
+        )
     twoD_steps = np.array([
         i / np.linalg.norm(goal_vec) * goal_vec for i in oneD_steps
     ])
