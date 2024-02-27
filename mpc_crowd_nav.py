@@ -11,7 +11,7 @@ AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
 DT = 0.1
 MAX_STEPS = 4 / DT  # The episode is 4 seconds
-N = 10
+N = 20
 TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
 DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
 
@@ -148,8 +148,55 @@ def qp_solution_terminal(reference_plan, agent_vel, goal_vec, step):
     return np.array([acc[0], acc[N]])
 
 
-env = fancy_gym.make("Navigation-v0", seed=0)
-returns, return_ = [], 0
+def qp_solution_collision_avoidance(reference_plan, agent_vel, crowd_poss, crowd_vels):
+    """
+    Optimize navigation by using a reference plan for the upcoming horizon and use
+    collision avoidance constraints on crowd where each member is assumed to be a circle
+    with constant velocity
+
+    Args:
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
+        agent_vel (numpy.ndarray): vector representing the current agent velocity
+        crowd_poss (numpy.ndarray): 2D position of each member of the crowd
+        crowd_vels (numpy.ndarray): 2D velocity of each member of the crowd
+    Return:
+        (numpy.ndarray): array with two elements representing the change in velocity (acc-
+            eleration) to be applied in the next step
+    """
+    opt_M = 5000 * (M_xa ** 2 * DT ** 4) * np.eye(2 * N)
+    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
+    acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
+
+    # collision constraints
+    con_M = M_xa.T @ (-crowd_poss + M_xv * np.repeat(agent_vel, N))
+    h = PERSONAL_SPACE * 2
+
+    acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
+    return np.array([acc[0], acc[N]])
+
+
+def calculate_crowd_positions(crowd_poss, crowd_vels):
+    """
+    Calculate the crowd positions for the next horizon given the constant velocity for
+    each member. The formula P_i = p_0 + i * v * dt, where for point i in horizon the
+    position will be p_0 + i * v * dt.
+
+    Args:
+        crowd_poss (numpy.ndarray): an array of size (n_crowd, 2) with the current
+            positions of each member
+        crowd_vels (numpy.ndarray): an array of size (n_crowd, 2) with the current
+            velocities of each member
+    Return:
+        (numpy.ndarray): with the predicted positions of the crowd throughout the horizon
+    """
+    return np.stack(crowd_poss, N) + np.einsum(
+        'ijk,i->ijk', np.stack([crowd_vels] * N, 0), np.arange(-1, N)
+    )
+
+
+env = gym.make("fancy/Navigation-v0", width=20, height=20)
+returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
 obs = env.reset()
 print("Observation shape: ", env.observation_space.shape)
