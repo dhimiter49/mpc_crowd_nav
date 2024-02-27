@@ -7,6 +7,7 @@ from numpy import ndarray
 from qpsolvers import solve_qp
 
 
+PHYSCIAL_SPACE = 0.4
 AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
 DT = 0.1
@@ -29,15 +30,14 @@ M_xa = [[ M_xa |  0   ]
         [  0   | M_xa ]]
 """
 M_xv = np.hstack([np.arange(1, N + 1)] * 2) * DT
-M_xa = scipy.linalg.toeplitz(np.arange(N, 0, -1) * DT ** 2, np.zeros(N))
-M_xa[0] = (3 * N - 1) / 6 * DT ** 2
-M_xa[-1] = 1 / 6 * DT ** 2
+M_xa = scipy.linalg.toeplitz(
+    np.array([(2 * i - 1) / 2 * DT ** 2 for i in range(N, 0, -1)]),
+    np.zeros(N)
+)
 M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
 ).reshape(2 * N ,2 * N)
 M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
-M_va[0] *= 0.5
-M_va[-1] = 0.5
 M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
 ).reshape(2 * N ,2 * N)
@@ -63,7 +63,7 @@ def planning_steps(goal_vec):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
     else:
         oneD_steps = np.arange(
-            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), AGENT_MAX_VEL * DT
+            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), 1.1 * AGENT_MAX_VEL * DT
         )
     twoD_steps = np.array([
         i / np.linalg.norm(goal_vec) * goal_vec for i in oneD_steps
@@ -74,7 +74,7 @@ def planning_steps(goal_vec):
     return np.hstack([steps[:, 0], steps[:, 1]])
 
 
-def qp_solution(goal_vec, agent_vel):
+def qp_solution(goal_vec, agent_vel, agent_acc):
     """
     Naive solution to the navigation problem where the optimization is with regards to
     minimizing the distance between all steps of the horizon and the goal.
@@ -86,15 +86,18 @@ def qp_solution(goal_vec, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = (0.5 + M_xa ** 2 * DT ** 2) * np.eye(2 * N)
-    opt_V = M_xa.T @ (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N))
+    opt_M = 700000 * M_xa ** 2
+    opt_V = (
+        -np.repeat(goal_vec, N) +
+        M_xv * np.repeat(agent_vel, N)
+    ) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
     return np.array([acc[0], acc[N]])
 
 
-def qp_solution_planning(reference_plan, agent_vel):
+def qp_solution_planning(reference_plan, agent_vel, agent_acc):
     """
     Optimize navigation by using a reference plan for the upcoming horizon.
 
@@ -106,8 +109,11 @@ def qp_solution_planning(reference_plan, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = (0.5 + M_xa ** 2 * DT ** 2) * np.eye(2 * N)
-    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
+    opt_M = 50 * M_xa ** 2
+    opt_V = (
+        -reference_plan +
+        M_xv * np.repeat(agent_vel, N)
+    ) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
@@ -127,7 +133,7 @@ def qp_solution_terminal(reference_plan, agent_vel, goal_vec, step):
             eleration) to be applied in the next step
     """
     # horizon = min(MAX_STEPS - step, N) if "-dh" in sys.argv else N
-    opt_M = (0.5 + M_xa ** 2 * DT ** 2) * np.eye(2 * N)
+    opt_M = (0.5 + M_xa ** 2) * np.eye(2 * N)
     opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
     acc_b = np.ones(2 * N) * (AGENT_MAX_ACC +  0.5) * DT
 
@@ -164,13 +170,13 @@ def qp_solution_collision_avoidance(reference_plan, agent_vel, crowd_poss, crowd
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 5000 * (M_xa ** 2 * DT ** 4) * np.eye(2 * N)
+    opt_M = 5000 * (M_xa ** 2) * np.eye(2 * N)
     opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
 
     # collision constraints
     con_M = M_xa.T @ (-crowd_poss + M_xv * np.repeat(agent_vel, N))
-    h = PERSONAL_SPACE * 2
+    h = PHYSCIAL_SPACE * 2
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
     return np.array([acc[0], acc[N]])
