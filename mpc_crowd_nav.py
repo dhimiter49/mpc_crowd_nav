@@ -203,35 +203,43 @@ obs = env.reset()
 print("Observation shape: ", env.observation_space.shape)
 print("Action shape: ", env.action_space.shape)
 
-for i in range(400):
-    step_counter += 1
-    if isinstance(obs, tuple):
-        goal_vec, agent_vel = obs[0][:2], obs[0][-2:]
-    else:
-        goal_vec, agent_vel = obs[:2], obs[-2:]
+from tqdm import tqdm
 
-    if "-lp" in sys.argv or "-tc" in sys.argv:
-        planned_steps = planning_steps(goal_vec)
-        steps= np.zeros((N, 2))
-        steps[:, 0] = planned_steps[:N]
-        steps[:, 1] = planned_steps[N:]
-        env.set_trajectory(steps - steps[0])
-        if "-tc" in sys.argv:
-            action = qp_solution_terminal(
-                planned_steps, agent_vel, goal_vec, step_counter
-            )
+for t in [0.5 * i for i in range(1)]:
+    coeff = t
+    returns, return_ = [], 0
+    for i in tqdm(range(4000)):
+        step_counter += 1
+        if isinstance(obs, tuple):
+            goal_vec, agent_vel = obs[0][:2], obs[0][-2:]
         else:
-            action = qp_solution_planning(planned_steps, agent_vel)
-    else:
-        action = qp_solution(goal_vec, agent_vel)
+            goal_vec, agent_vel = obs[:2], obs[-2:]
 
-    obs, reward, terminated, truncated, info = env.step(action)
-    return_ += reward
-    None if "-nr" in sys.argv else env.render()
-    if terminated or truncated:
-        print(return_)
-        returns.append(return_)
-        return_ = 0
-        step_counter = 0
-        obs = env.reset()
-print("Mean: ", np.mean(returns))
+        if "-lp" in sys.argv or "-tc" in sys.argv:
+            planned_steps = planning_steps(goal_vec)
+            steps= np.zeros((N, 2))
+            steps[:, 0] = planned_steps[:N]
+            steps[:, 1] = planned_steps[N:]
+            # env.set_trajectory(steps - steps[0])
+            if "-tc" in sys.argv:
+                action = qp_solution_terminal(
+                    planned_steps, agent_vel, goal_vec, step_counter
+                )
+            else:
+                action = qp_solution_planning(planned_steps, agent_vel, action)
+        else:
+            action = qp_solution(goal_vec, agent_vel, action)
+
+        vels.append(np.linalg.norm(env.current_vel))
+        obs, reward, terminated, truncated, info = env.step(action)
+        return_ += reward
+        None if "-nr" in sys.argv else env.render()
+        if terminated or truncated:
+            # print(return_)
+            # print(np.max(vels))
+            vels = []
+            returns.append(return_)
+            return_ = 0
+            step_counter = 0
+            obs = env.reset()
+    print("Coeff: " , coeff, " Mean: ", np.mean(returns))
