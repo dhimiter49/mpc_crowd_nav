@@ -34,6 +34,7 @@ M_xa = scipy.linalg.toeplitz(
     np.array([(2 * i - 1) / 2 * DT ** 2 for i in range(N, 0, -1)]),
     np.zeros(N)
 )
+# M_xa = scipy.linalg.toeplitz(np.arange(N, 0, -1) * DT, np.zeros(N))
 M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
 ).reshape(2 * N ,2 * N)
@@ -86,11 +87,8 @@ def qp_solution(goal_vec, agent_vel, agent_acc):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 700000 * M_xa ** 2
-    opt_V = (
-        -np.repeat(goal_vec, N) +
-        M_xv * np.repeat(agent_vel, N)
-    ) @ M_xa
+    opt_M = 10 * M_xa ** 2
+    opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
@@ -109,12 +107,9 @@ def qp_solution_planning(reference_plan, agent_vel, agent_acc):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 50 * M_xa ** 2
-    opt_V = (
-        -reference_plan +
-        M_xv * np.repeat(agent_vel, N)
-    ) @ M_xa
-    acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
+    opt_M = 10 * M_xa ** 2
+    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
+    acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
     return np.array([acc[0], acc[N]])
