@@ -44,7 +44,7 @@ M_va = np.stack(
 ).reshape(2 * N ,2 * N)
 
 
-def planning_steps(goal_vec):
+def linear_planner(goal_vec):
     """
     A naive plan that draws a straight path from the current agent position to the goal.
     The trajecotry is discretized by the maximum distance that the agent can traverse in
@@ -60,6 +60,7 @@ def planning_steps(goal_vec):
             and the second N elements are the y-coords
     """
     steps = np.zeros((N, 2))
+    vels= np.stack([AGENT_MAX_VEL / np.linalg.norm(goal_vec) * goal_vec] * N).reshape(N, 2)
     if AGENT_MAX_VEL * DT > np.linalg.norm(goal_vec):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
     else:
@@ -72,7 +73,8 @@ def planning_steps(goal_vec):
     n_steps = min(N, len(oneD_steps))
     steps[:n_steps,:] = twoD_steps[:n_steps]
     steps[n_steps:,:] += goal_vec
-    return np.hstack([steps[:, 0], steps[:, 1]])
+    vels[n_steps:,:] = np.zeros(2)
+    return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
 def qp_solution(goal_vec, agent_vel, agent_acc):
@@ -95,7 +97,7 @@ def qp_solution(goal_vec, agent_vel, agent_acc):
     return np.array([acc[0], acc[N]])
 
 
-def qp_solution_planning(reference_plan, agent_vel, agent_acc):
+def qp_solution_planning(reference_plan, agent_vel):
     """
     Optimize navigation by using a reference plan for the upcoming horizon.
 
@@ -109,6 +111,29 @@ def qp_solution_planning(reference_plan, agent_vel, agent_acc):
     """
     opt_M = 10 * M_xa ** 2
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
+    acc_b = np.ones(2 * N) * AGENT_MAX_ACC
+
+    acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
+    return np.array([acc[0], acc[N]])
+
+
+def qp_solution_planning_vel(reference_plan, reference_vels, agent_vel):
+    """
+    Optimize navigation by using a reference plan for the upcoming horizon.
+
+    Args:
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
+        reference_vels (numpy.ndarray): vector of reference velocities with same size as
+            the given horizon
+        agent_vel (numpy.ndarray): vector representing the current agent velocity
+    Return:
+        (numpy.ndarray): array with two elements representing the change in velocity (acc-
+            eleration) to be applied in the next step
+    """
+    opt_M = 10 * (M_xa ** 2) + 40 * M_va ** 2
+    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa +\
+        0.1 * (-reference_vels) @ M_va
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
@@ -215,8 +240,8 @@ for t in [0.5 * i for i in range(1)]:
         else:
             goal_vec, agent_vel = obs[:2], obs[-2:]
 
-        if "-lp" in sys.argv or "-tc" in sys.argv:
-            planned_steps = planning_steps(goal_vec)
+        if "-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv:
+            planned_steps, planned_vels = linear_planner(goal_vec)
             steps= np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
             steps[:, 1] = planned_steps[N:]
@@ -225,8 +250,12 @@ for t in [0.5 * i for i in range(1)]:
                 action = qp_solution_terminal(
                     planned_steps, agent_vel, goal_vec, step_counter
                 )
+            elif "-lpv" in sys.argv:
+                planned_vels[:N] -= agent_vel[0]
+                planned_vels[N:] -= agent_vel[1]
+                action = qp_solution_planning_vel(planned_steps, planned_vels, agent_vel)
             else:
-                action = qp_solution_planning(planned_steps, agent_vel, action)
+                action = qp_solution_planning(planned_steps, agent_vel)
         else:
             action = qp_solution(goal_vec, agent_vel, action)
 
