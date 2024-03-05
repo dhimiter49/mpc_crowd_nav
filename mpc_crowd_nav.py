@@ -42,6 +42,8 @@ M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
 M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
 ).reshape(2 * N ,2 * N)
+crowd_const_mat = lambda n_crowd : np.zeros((n_crowd, 4 * n_crowd))
+alpha, beta, epsilon = 0.1, 10, 1e-2
 
 
 def linear_planner(goal_vec):
@@ -77,7 +79,7 @@ def linear_planner(goal_vec):
     return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
-def qp_solution(goal_vec, agent_vel, agent_acc):
+def qp(goal_vec, agent_vel, agent_acc):
     """
     Naive solution to the navigation problem where the optimization is with regards to
     minimizing the distance between all steps of the horizon and the goal.
@@ -97,7 +99,7 @@ def qp_solution(goal_vec, agent_vel, agent_acc):
     return np.array([acc[0], acc[N]])
 
 
-def qp_solution_planning(reference_plan, agent_vel):
+def qp_planning(reference_plan, agent_vel):
     """
     Optimize navigation by using a reference plan for the upcoming horizon.
 
@@ -117,7 +119,7 @@ def qp_solution_planning(reference_plan, agent_vel):
     return np.array([acc[0], acc[N]])
 
 
-def qp_solution_planning_vel(reference_plan, reference_vels, agent_vel):
+def qp_planning_vel(reference_plan, reference_vels, agent_vel):
     """
     Optimize navigation by using a reference plan for the upcoming horizon.
 
@@ -140,7 +142,7 @@ def qp_solution_planning_vel(reference_plan, reference_vels, agent_vel):
     return np.array([acc[0], acc[N]])
 
 
-def qp_solution_terminal(reference_plan, agent_vel, goal_vec, step):
+def qp_terminal(reference_plan, agent_vel, goal_vec, step):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and speficying
     a terminal constraint on the position of the agent.
@@ -174,7 +176,89 @@ def qp_solution_terminal(reference_plan, agent_vel, goal_vec, step):
     return np.array([acc[0], acc[N]])
 
 
-def qp_solution_collision_avoidance(reference_plan, agent_vel, crowd_poss, crowd_vels):
+def calculate_sep_plane(crowd_pos, old_sep_plane, next_crowd_pos=None):
+    M_cc = np.array([crowd_pos[0], crowd_pos[1], -1, 0])
+    M_ca = np.array([0, 0, -1, -1])
+    M_cs = np.array([1, 1, 0, 0])
+    M_cls = np.array([old_sep_plane[0], old_sep_plane[1], 0, 0])
+
+    opt_M = np.diag([beta, beta, beta, alpha])
+    opt_V = np.concatenate((old_sep_plane, [-1]))
+    sep_plane = solve_qp(
+        opt_M, opt_V,
+        G=np.vstack([M_cc, -M_ca, -M_cs, M_cs, -M_cls, M_cls]),
+        h=np.hstack([
+            np.zeros(1),
+            np.zeros(1),
+            np.ones(1),
+            np.ones(1),
+            epsilon - np.ones(1),
+            np.ones(1),
+        ]),
+        solver="clarabel",
+    )
+    return sep_plane[:-1]
+
+
+def calculate_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
+    """
+    Calculate the separating planes between agent and crowd.
+
+    Args:
+        crowd_poss (numpy.ndarray): position of the crowd relative to the agent
+        next_crowd_poss (numpy.ndarray): position of the crowd relative to the agent for
+            for the next step
+        old_sep_planes (numpy.ndarray): the separation normals and constant from the last
+            iteration
+    Return:
+        (numpy.ndarray): array of all separating planes betweeen agent and each member of
+            the crowd
+    """
+    n_crowd = len(crowd_poss)
+    M_cc = crowd_const_mat(n_crowd)  # crowd constraint matrix
+    for i, pos in enumerate(crowd_poss):
+        M_cc[i][i * 4 : i * 4 + 2] = pos
+        M_cc[i][i * 4 + 2] = -1
+
+    # robot position is always origin
+    M_ca = crowd_const_mat(n_crowd) # agent constraint matrix
+    for i in range(n_crowd):
+        M_ca[i][i * 4 + 2 : i * 4 + 4] = -1
+    M_cs = crowd_const_mat(n_crowd)  # sep normal constraint
+    for i in range(n_crowd):
+        M_cs[i][i * 4 : i * 4 + 2] = 1
+    M_cls = crowd_const_mat(n_crowd)  # old sep normal constraint
+    for i in range(n_crowd):
+        M_cls[i][i * 4 : i * 4 + 2] = old_sep_planes[i * 3 : i * 3 + 2]
+
+    opt_M = np.eye((4 * n_crowd)) * beta
+    for i in range(n_crowd):
+        opt_M[i * 4 + 3, i * 4 + 3] = alpha
+    opt_V = -np.ones(4 * n_crowd)
+    for i in range(n_crowd):
+        opt_V[i * 4 : i * 4 + 3] *= 2 * old_sep_planes[i * 3 : i * 3 + 3]
+    sep_planes = solve_qp(
+        opt_M, opt_V,
+        G=np.vstack([M_cc, -M_ca, -M_cs, M_cs, -M_cls, M_cls]),
+        h=np.hstack([
+            np.zeros(n_crowd),
+            np.zeros(n_crowd),
+            np.ones(n_crowd),
+            np.ones(n_crowd),
+            epsilon - np.ones(n_crowd),
+            np.ones(n_crowd),
+        ]),
+        solver="clarabel",
+    )
+    rm_d = []
+    for i in range(4 * n_crowd):
+        if i % 4 != 3:
+            rm_d.append(sep_planes[i])
+    sep_planes = np.array(rm_d)
+    return sep_planes
+
+
+def qp_planning_col_avoid(reference_plan, agent_vel, sep_planes, crowd_poss):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
     collision avoidance constraints on crowd where each member is assumed to be a circle
@@ -184,19 +268,17 @@ def qp_solution_collision_avoidance(reference_plan, agent_vel, crowd_poss, crowd
         reference_plan (numpy.ndarray): vector of reference points with same size as the
             given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
+        sep_planes (numpy.ndarray): vector representing the separating planes between
+            crowd and agent with the shape of len(crowd_poss) * 3, with 2 coefficients
+            representing the normal and the third being the displacement from the origin
         crowd_poss (numpy.ndarray): 2D position of each member of the crowd
-        crowd_vels (numpy.ndarray): 2D velocity of each member of the crowd
     Return:
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 5000 * (M_xa ** 2) * np.eye(2 * N)
-    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
-    acc_b = np.ones(2 * N) * AGENT_MAX_ACC * DT
-
-    # collision constraints
-    con_M = M_xa.T @ (-crowd_poss + M_xv * np.repeat(agent_vel, N))
-    h = PHYSCIAL_SPACE * 2
+    opt_M = 10 * M_xa ** 2
+    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
+    acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
     return np.array([acc[0], acc[N]])
@@ -220,8 +302,21 @@ def calculate_crowd_positions(crowd_poss, crowd_vels):
         'ijk,i->ijk', np.stack([crowd_vels] * N, 0), np.arange(-1, N)
     )
 
+def sep_planes_from_plan(plan, num_crowd):
+    """
+    From given plan given as a vector calculate the normal representation. Assuming that
+    b is 0 since the agent is always at coordinate 0. if vector is [x, y] then normal is
+    [-y, x] then x(-y) + yx = 0
+    """
+    normal = np.array([-plan[N], plan[0], 0])
+    return np.array([normal / np.linalg.norm(normal)] * num_crowd)
 
-env = gym.make("fancy/Navigation-v0", width=20, height=20)
+
+separating_planes = None
+if "-c" in sys.argv:
+    env = gym.make("fancy/CrowdNavigationStatic-v0", width=20, height=20)
+else:
+    env = gym.make("fancy/CrowdNavigationStatic-v0", width=20, height=20)
 returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
 obs = env.reset()
@@ -236,28 +331,43 @@ for t in [0.5 * i for i in range(1)]:
     for i in tqdm(range(4000)):
         step_counter += 1
         if isinstance(obs, tuple):
-            goal_vec, agent_vel = obs[0][:2], obs[0][-2:]
+            goal_vec, crowd_poss, agent_vel = obs[0][:2], obs[0][2:-2], obs[0][-2:]
         else:
-            goal_vec, agent_vel = obs[:2], obs[-2:]
+            goal_vec, crowd_poss, agent_vel = obs[:2], obs[2:-2], obs[-2:]
+        crowd_poss.resize(len(crowd_poss) // 2, 2)
 
-        if "-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv:
+        if "-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or "-c" in sys.argv:
             planned_steps, planned_vels = linear_planner(goal_vec)
             steps= np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
             steps[:, 1] = planned_steps[N:]
             # env.set_trajectory(steps - steps[0])
             if "-tc" in sys.argv:
-                action = qp_solution_terminal(
+                action = qp_terminal(
                     planned_steps, agent_vel, goal_vec, step_counter
                 )
             elif "-lpv" in sys.argv:
                 planned_vels[:N] -= agent_vel[0]
                 planned_vels[N:] -= agent_vel[1]
-                action = qp_solution_planning_vel(planned_steps, planned_vels, agent_vel)
+                action = qp_planning_vel(planned_steps, planned_vels, agent_vel)
+            elif "-c" in sys.argv:
+                if separating_planes is None:
+                    separating_planes = sep_planes_from_plan(planned_steps, len(crowd_poss))
+                new_separating_planes = []
+                for i, member in enumerate(crowd_poss):
+                    new_separating_planes.append(
+                        calculate_sep_plane(member, separating_planes[i])
+                    )
+                # separating_planes = calculate_sep_planes(crowd_poss, separating_planes)
+                separating_planes = np.array(new_separating_planes)
+                env.set_separating_planes(separating_planes)
+                action = qp_planning_col_avoid(
+                    planned_steps, agent_vel, separating_planes, crowd_poss
+                )
             else:
-                action = qp_solution_planning(planned_steps, agent_vel)
+                action = qp_planning(planned_steps, agent_vel)
         else:
-            action = qp_solution(goal_vec, agent_vel, action)
+            action = qp(goal_vec, agent_vel, action)
 
         vels.append(np.linalg.norm(env.current_vel))
         obs, reward, terminated, truncated, info = env.step(action)
@@ -266,6 +376,7 @@ for t in [0.5 * i for i in range(1)]:
         if terminated or truncated:
             # print(return_)
             # print(np.max(vels))
+            separating_planes = None
             vels = []
             returns.append(return_)
             return_ = 0
