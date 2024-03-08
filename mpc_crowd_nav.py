@@ -62,7 +62,9 @@ def linear_planner(goal_vec):
             and the second N elements are the y-coords
     """
     steps = np.zeros((N, 2))
-    vels= np.stack([AGENT_MAX_VEL / np.linalg.norm(goal_vec) * goal_vec] * N).reshape(N, 2)
+    vels = np.stack(
+        [AGENT_MAX_VEL / np.linalg.norm(goal_vec) * goal_vec] * N
+    ).reshape(N, 2)
     if AGENT_MAX_VEL * DT > np.linalg.norm(goal_vec):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
     else:
@@ -91,7 +93,7 @@ def qp(goal_vec, agent_vel, agent_acc):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 60000 * M_xa ** 2
+    opt_M = 85000 * M_xa ** 2
     opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
@@ -111,7 +113,7 @@ def qp_planning(reference_plan, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 60000 * M_xa ** 2
+    opt_M = 85000 * M_xa ** 2
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
@@ -133,7 +135,7 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 10 * (M_xa ** 2) + 40 * M_va ** 2
+    opt_M = 50000 * M_xa ** 2 + 80 * M_va ** 2
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa +\
         0.1 * (-reference_vels) @ M_va
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
@@ -293,7 +295,7 @@ def qp_planning_col_avoid(reference_plan, agent_vel, sep_planes, crowd_poss):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 60000 * M_xa ** 2
+    opt_M = 85000 * M_xa ** 2
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     const_M = []  # constraint matrices
