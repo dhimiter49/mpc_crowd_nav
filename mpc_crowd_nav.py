@@ -7,7 +7,7 @@ from numpy import ndarray
 from qpsolvers import solve_qp
 
 
-PHYSCIAL_SPACE = 0.4
+PHYSICAL_SPACE = 0.4
 AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
 DT = 0.1
@@ -43,7 +43,7 @@ M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
 ).reshape(2 * N ,2 * N)
 crowd_const_mat = lambda n_crowd : np.zeros((n_crowd, 4 * n_crowd))
-alpha, beta, epsilon = 0.1, 10, 1e-2
+alpha, beta, epsilon = 0.1, 100, 1e-4
 
 
 def linear_planner(goal_vec):
@@ -176,7 +176,24 @@ def qp_terminal(reference_plan, agent_vel, goal_vec, step):
     return np.array([acc[0], acc[N]])
 
 
-def calculate_sep_plane(crowd_pos, old_sep_plane, next_crowd_pos=None):
+def calculate_sep_plane(crowd_pos):
+    dist = np.linalg.norm(crowd_pos)
+    return np.concatenate((crowd_pos / dist, [dist - 2 * PHYSICAL_SPACE]))
+
+
+def opt_sep_plane(crowd_pos, old_sep_plane, next_crowd_pos=None):
+    """
+    Calculate the separating planes between agent and a single member of the crowd.
+
+    Args:
+        crowd_poss (numpy.ndarray): position of the person
+        next_crowd_poss (numpy.ndarray): position of the person in the next iteration
+            for the next step
+        old_sep_planes (numpy.ndarray): the separation normals and constant from the last
+            iteration
+    Return:
+        (numpy.ndarray): separating plane between agent and member of the crowd
+    """
     M_cc = np.array([crowd_pos[0], crowd_pos[1], -1, 0])
     M_ca = np.array([0, 0, -1, -1])
     M_cs = np.array([1, 1, 0, 0])
@@ -200,7 +217,7 @@ def calculate_sep_plane(crowd_pos, old_sep_plane, next_crowd_pos=None):
     return sep_plane[:-1]
 
 
-def calculate_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
+def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
     """
     Calculate the separating planes between agent and crowd.
 
@@ -316,7 +333,7 @@ separating_planes = None
 if "-c" in sys.argv:
     env = gym.make("fancy/CrowdNavigationStatic-v0", width=20, height=20)
 else:
-    env = gym.make("fancy/CrowdNavigationStatic-v0", width=20, height=20)
+    env = gym.make("fancy/Navigation-v0", width=20, height=20)
 returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
 obs = env.reset()
@@ -351,16 +368,7 @@ for t in [0.5 * i for i in range(1)]:
                 planned_vels[N:] -= agent_vel[1]
                 action = qp_planning_vel(planned_steps, planned_vels, agent_vel)
             elif "-c" in sys.argv:
-                if separating_planes is None:
-                    separating_planes = sep_planes_from_plan(planned_steps, len(crowd_poss))
-                new_separating_planes = []
-                for i, member in enumerate(crowd_poss):
-                    new_separating_planes.append(
-                        calculate_sep_plane(member, separating_planes[i])
-                    )
-                # separating_planes = calculate_sep_planes(crowd_poss, separating_planes)
-                separating_planes = np.array(new_separating_planes)
-                env.set_separating_planes(separating_planes)
+                env.set_separating_planes()
                 action = qp_planning_col_avoid(
                     planned_steps, agent_vel, separating_planes, crowd_poss
                 )
