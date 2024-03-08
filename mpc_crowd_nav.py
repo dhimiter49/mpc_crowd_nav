@@ -293,11 +293,27 @@ def qp_planning_col_avoid(reference_plan, agent_vel, sep_planes, crowd_poss):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 10 * M_xa ** 2
+    opt_M = 60000 * M_xa ** 2
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    for pos in crowd_poss:
+        vec = -pos / np.linalg.norm(pos)
+        M_ca = np.hstack([np.eye(N) * vec[0], np.eye(N) * vec[1]])
+        v_cb = M_ca @ (-np.repeat(pos, N) + M_xv * np.repeat(agent_vel, N)) -\
+            np.array([3 * PHYSICAL_SPACE] * N)
+        M_cac = -M_ca @ M_xa
+        const_M.append(M_cac)
+        const_b.append(v_cb)
 
-    acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
+    acc = solve_qp(
+        opt_M, opt_V, lb=-acc_b, ub=acc_b,
+        G=np.vstack(const_M),
+        h=np.hstack(const_b),
+        solver="clarabel"
+    )
+
     return np.array([acc[0], acc[N]])
 
 
