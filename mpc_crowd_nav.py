@@ -316,11 +316,14 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss):
 
     if acc is None:
         speed = np.linalg.norm(agent_vel)
-        acc = -agent_vel / speed
-        if speed > AGENT_MAX_ACC:
-            acc *= AGENT_MAX_ACC
+        if speed > 1e-5:
+            acc = -agent_vel / speed
+            if speed > AGENT_MAX_ACC * DT:
+                acc *= AGENT_MAX_ACC
+            else:
+                acc *= speed / DT
         else:
-            acc += speed
+            acc = np.zeros(2)
     else:
         acc = np.array([acc[0], acc[N]])
 
