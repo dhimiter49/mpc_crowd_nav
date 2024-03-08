@@ -93,7 +93,7 @@ def qp(goal_vec, agent_vel, agent_acc):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 85000 * M_xa ** 2
+    opt_M = 70000 * M_xa ** 2
     opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
@@ -113,7 +113,7 @@ def qp_planning(reference_plan, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 85000 * M_xa ** 2
+    opt_M = 70000 * M_xa ** 2
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
@@ -277,7 +277,7 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
     return sep_planes
 
 
-def qp_planning_col_avoid(reference_plan, agent_vel, sep_planes, crowd_poss):
+def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
     collision avoidance constraints on crowd where each member is assumed to be a circle
@@ -287,23 +287,21 @@ def qp_planning_col_avoid(reference_plan, agent_vel, sep_planes, crowd_poss):
         reference_plan (numpy.ndarray): vector of reference points with same size as the
             given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
-        sep_planes (numpy.ndarray): vector representing the separating planes between
-            crowd and agent with the shape of len(crowd_poss) * 3, with 2 coefficients
-            representing the normal and the third being the displacement from the origin
         crowd_poss (numpy.ndarray): 2D position of each member of the crowd
     Return:
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 85000 * M_xa ** 2
+    opt_M = 60000 * M_xa ** 2
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
-    for pos in crowd_poss:
-        vec = -pos / np.linalg.norm(pos)
-        M_ca = np.hstack([np.eye(N) * vec[0], np.eye(N) * vec[1]])
-        v_cb = M_ca @ (-np.repeat(pos, N) + M_xv * np.repeat(agent_vel, N)) -\
+    for member in range(len(crowd_poss[1])):
+        poss = crowd_poss[:, member, :]
+        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
+        M_ca = np.hstack([np.eye(N) * vec[:, 0], np.eye(N) * vec[:, 1]])
+        v_cb = M_ca @ (-poss.flatten("F") + M_xv * np.repeat(agent_vel, N)) -\
             np.array([3 * PHYSICAL_SPACE] * N)
         M_cac = -M_ca @ M_xa
         const_M.append(M_cac)
@@ -316,7 +314,17 @@ def qp_planning_col_avoid(reference_plan, agent_vel, sep_planes, crowd_poss):
         solver="clarabel"
     )
 
-    return np.array([acc[0], acc[N]])
+    if acc is None:
+        speed = np.linalg.norm(agent_vel)
+        acc = -agent_vel / speed
+        if speed > AGENT_MAX_ACC:
+            acc *= AGENT_MAX_ACC
+        else:
+            acc += speed
+    else:
+        acc = np.array([acc[0], acc[N]])
+
+    return acc
 
 
 def calculate_crowd_positions(crowd_poss, crowd_vels):
@@ -333,8 +341,8 @@ def calculate_crowd_positions(crowd_poss, crowd_vels):
     Return:
         (numpy.ndarray): with the predicted positions of the crowd throughout the horizon
     """
-    return np.stack(crowd_poss, N) + np.einsum(
-        'ijk,i->ijk', np.stack([crowd_vels] * N, 0), np.arange(-1, N)
+    return np.stack([crowd_poss] * N) + np.einsum(
+        'ijk,i->ijk', np.stack([crowd_vels] * N, 0) * DT, np.arange(0, N)
     )
 
 def sep_planes_from_plan(plan, num_crowd):
@@ -350,6 +358,8 @@ def sep_planes_from_plan(plan, num_crowd):
 separating_planes = None
 if "-c" in sys.argv:
     env = gym.make("fancy/CrowdNavigationStatic-v0", width=20, height=20)
+elif "-mc" in sys.argv:
+    env = gym.make("fancy/CrowdNavigation-v0", width=10, height=10)
 else:
     env = gym.make("fancy/Navigation-v0", width=20, height=20)
 returns, return_, vels, action = [], 0, [], [0, 0]
@@ -365,13 +375,29 @@ for t in [0.5 * i for i in range(1)]:
     returns, return_ = [], 0
     for i in tqdm(range(4000)):
         step_counter += 1
-        if isinstance(obs, tuple):
-            goal_vec, crowd_poss, agent_vel = obs[0][:2], obs[0][2:-2], obs[0][-2:]
+        if "-mc" in sys.argv:
+            if isinstance(obs, tuple):
+                pos_idx = len(obs[0]) // 2
+                goal_vec, crowd_poss, agent_vel, crowd_vels = (
+                    obs[0][:2],
+                    obs[0][2:pos_idx],
+                    obs[0][pos_idx:pos_idx+2],
+                    obs[0][pos_idx+2:]
+                )
+            else:
+                pos_idx = len(obs) // 2
+                goal_vec, crowd_poss, agent_vel, crowd_vels =\
+                    obs[:2], obs[2:pos_idx], obs[pos_idx:pos_idx+2], obs[pos_idx+2:]
+            crowd_vels.resize(len(crowd_vels) // 2, 2)
         else:
-            goal_vec, crowd_poss, agent_vel = obs[:2], obs[2:-2], obs[-2:]
+            if isinstance(obs, tuple):
+                goal_vec, crowd_poss, agent_vel = obs[0][:2], obs[0][2:-2], obs[0][-2:]
+            else:
+                goal_vec, crowd_poss, agent_vel = obs[:2], obs[2:-2], obs[-2:]
         crowd_poss.resize(len(crowd_poss) // 2, 2)
 
-        if "-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or "-c" in sys.argv:
+        if ("-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or
+            "-c" in sys.argv or "-mc" in sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
             steps= np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
@@ -387,8 +413,15 @@ for t in [0.5 * i for i in range(1)]:
                 action = qp_planning_vel(planned_steps, planned_vels, agent_vel)
             elif "-c" in sys.argv:
                 env.set_separating_planes()
+                horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_poss * 0)
                 action = qp_planning_col_avoid(
-                    planned_steps, agent_vel, separating_planes, crowd_poss
+                    planned_steps, agent_vel, horizon_crowd_poss
+                )
+            elif "-mc" in sys.argv:
+                env.set_separating_planes()
+                horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_vels)
+                action = qp_planning_col_avoid(
+                    planned_steps, agent_vel, horizon_crowd_poss
                 )
             else:
                 action = qp_planning(planned_steps, agent_vel)
