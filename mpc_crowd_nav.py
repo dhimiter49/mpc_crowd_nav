@@ -378,26 +378,49 @@ for t in [0.5 * i for i in range(1)]:
     returns, return_ = [], 0
     for i in tqdm(range(4000)):
         step_counter += 1
-        if "-mc" in sys.argv:
-            if isinstance(obs, tuple):
-                pos_idx = len(obs[0]) // 2
-                goal_vec, crowd_poss, agent_vel, crowd_vels = (
-                    obs[0][:2],
-                    obs[0][2:pos_idx],
-                    obs[0][pos_idx:pos_idx+2],
-                    obs[0][pos_idx+2:]
-                )
-            else:
-                pos_idx = len(obs) // 2
-                goal_vec, crowd_poss, agent_vel, crowd_vels =\
-                    obs[:2], obs[2:pos_idx], obs[pos_idx:pos_idx+2], obs[pos_idx+2:]
-            crowd_vels.resize(len(crowd_vels) // 2, 2)
+        if "-mc" in sys.argv or "-c" in sys.argv:
+            n_crowd = 4 * 2
+            if "-mc" in sys.argv:
+                if isinstance(obs, tuple):
+                    goal_vec, crowd_poss, agent_vel, crowd_vels, wall_dist = (
+                        obs[0][: 2],
+                        obs[0][2 : 2 + n_crowd],
+                        obs[0][n_crowd + 2: n_crowd + 4],
+                        obs[0][n_crowd + 4 : 2 * n_crowd + 4],
+                        obs[0][2 * n_crowd + 4 :]
+                    )
+                else:
+                    pos_idx = len(obs) // 2
+                    goal_vec, crowd_poss, agent_vel, crowd_vels, wall_dist = (
+                        obs[: 2],
+                        obs[2 : 2 + n_crowd],
+                        obs[2 + n_crowd : n_crowd + 4],
+                        obs[n_crowd + 4 : 2 * n_crowd + 4],
+                        obs[2 * n_crowd + 4 :]
+                    )
+                crowd_vels.resize(len(crowd_vels) // 2, 2)
+            if "-c" in sys.argv:
+                if isinstance(obs, tuple):
+                    goal_vec, crowd_poss, agent_vel, wall_dist = (
+                        obs[0][: 2],
+                        obs[0][2 : n_crowd + 2],
+                        obs[0][n_crowd + 2 : n_crowd + 4],
+                        obs[0][n_crowd + 4 :]
+                    )
+                else:
+                    pos_idx = len(obs) // 2
+                    goal_vec, crowd_poss, agent_vel, wall_dist = (
+                        obs[: 2],
+                        obs[2 : n_crowd + 2],
+                        obs[n_crowd + 2 : n_crowd + 4],
+                        obs[n_crowd + 4 :]
+                    )
+            crowd_poss.resize(len(crowd_poss) // 2, 2)
         else:
             if isinstance(obs, tuple):
-                goal_vec, crowd_poss, agent_vel = obs[0][:2], obs[0][2:-2], obs[0][-2:]
+                goal_vec, agent_vel = obs[0][:2], obs[0][2:4]
             else:
-                goal_vec, crowd_poss, agent_vel = obs[:2], obs[2:-2], obs[-2:]
-        crowd_poss.resize(len(crowd_poss) // 2, 2)
+                goal_vec, agent_vel = obs[:2], obs[2:4]
 
         if ("-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or
             "-c" in sys.argv or "-mc" in sys.argv):
