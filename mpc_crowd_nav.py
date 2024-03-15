@@ -294,7 +294,7 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
     return sep_planes
 
 
-def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss):
+def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
     collision avoidance constraints on crowd where each member is assumed to be a circle
@@ -305,12 +305,14 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss):
             given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
         crowd_poss (numpy.ndarray): 2D position of each member of the crowd
+        old_plan (numpy.ndarrray): plan from last iteration
     Return:
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 60000 * M_xa ** 2
-    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa
+    opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
+    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
+        0.25 * np.repeat(agent_vel, N) @ M_va
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
@@ -319,32 +321,34 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss):
         vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(N) * vec[:, 0], np.eye(N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + M_xv * np.repeat(agent_vel, N)) -\
-            np.array([3 * PHYSICAL_SPACE] * N)
+            np.array([4 * PHYSICAL_SPACE] * N)
         M_cac = -M_ca @ M_xa
         const_M.append(M_cac)
         const_b.append(v_cb)
+    # const_M.append(np.hstack([
+    #     np.diag(np.append(old_plan[:, 0] / np.linalg.norm(old_plan, axis=-1), 1)),
+    #     np.diag(np.append(old_plan[:, 1] / np.linalg.norm(old_plan, axis=-1), 1)),
+    # ]))
+    # const_b.append(np.ones(N) * AGENT_MAX_ACC)
+
+    # passive safety
+    term_const_M = M_va[[N - 1, 2 * N - 1], :]
+    term_const_b = -agent_vel
 
     acc = solve_qp(
         opt_M, opt_V, lb=-acc_b, ub=acc_b,
-        G=np.vstack(const_M),
-        h=np.hstack(const_b),
+        G=np.vstack(const_M), h=np.hstack(const_b),
+        A=term_const_M, b=term_const_b,
         solver="clarabel"
     )
 
     if acc is None:
-        speed = np.linalg.norm(agent_vel)
-        if speed > 1e-5:
-            acc = -agent_vel / speed
-            if speed > AGENT_MAX_ACC * DT:
-                acc *= AGENT_MAX_ACC
-            else:
-                acc *= speed / DT
-        else:
-            acc = np.zeros(2)
-    else:
-        acc = np.array([acc[0], acc[N]])
+        print("Executing last computed trajectory for braking!")
+        acc = np.zeros(2 * N)
+        acc[0 : N - 1] = old_plan[:, 0]
+        acc[N : 2 * N - 1] = old_plan[:, 1]
 
-    return acc
+    return np.array([acc[:N], acc[N:]]).T
 
 
 def calculate_crowd_positions(crowd_poss, crowd_vels):
@@ -385,6 +389,7 @@ else:
 returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
 obs = env.reset()
+plan = np.ones((N, 2))
 print("Observation shape: ", env.observation_space.shape)
 print("Action shape: ", env.action_space.shape)
 
