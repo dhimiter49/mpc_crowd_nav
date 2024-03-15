@@ -80,7 +80,7 @@ def linear_planner(goal_vec):
     return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
-def qp(goal_vec, agent_vel, agent_acc):
+def qp(goal_vec, agent_vel):
     """
     Naive solution to the navigation problem where the optimization is with regards to
     minimizing the distance between all steps of the horizon and the goal.
@@ -92,12 +92,13 @@ def qp(goal_vec, agent_vel, agent_acc):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 70000 * M_xa ** 2
-    opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)) @ M_xa
+    opt_M = 0.5 * M_va.T @ M_va + M_xa.T @ M_xa
+    opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
+        0.5 * np.repeat(agent_vel, N) @ M_va
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
-    return np.array([acc[0], acc[N]])
+    return np.array([acc[:N], acc[N:]]).T
 
 
 def qp_planning(reference_plan, agent_vel):
@@ -117,8 +118,16 @@ def qp_planning(reference_plan, agent_vel):
         0.25 * np.repeat(agent_vel, N) @ M_va
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
-    acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
-    return np.array([acc[0], acc[N]])
+    # passive safety
+    term_const_M = M_va[[N - 1, 2 * N - 1], :]
+    term_const_b = -agent_vel
+
+    acc = solve_qp(
+        opt_M, opt_V, lb=-acc_b, ub=acc_b,
+        A=term_const_M, b=term_const_b,
+        solver="clarabel"
+    )
+    return np.array([acc[:N], acc[N:]]).T
 
 
 def qp_planning_vel(reference_plan, reference_vels, agent_vel):
@@ -135,13 +144,21 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 50000 * M_xa ** 2 + 80 * M_va ** 2
-    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)) @ M_xa +\
-        0.1 * (-reference_vels) @ M_va
+    opt_M = 0.2 * np.eye(2 * N) + 0.15 * M_va.T @ M_va + M_xa.T @ M_xa
+    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
+        0.15 * (-reference_vels).T @ M_va
     acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
-    acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
-    return np.array([acc[0], acc[N]])
+    # passive safety
+    term_const_M = M_va[[N - 1, 2 * N - 1], :]
+    term_const_b = -agent_vel
+
+    acc = solve_qp(
+        opt_M, opt_V, lb=-acc_b, ub=acc_b,
+        A=term_const_M, b=term_const_b,
+        solver="clarabel"
+    )
+    return np.array([acc[:N], acc[N:]]).T
 
 
 def qp_terminal(reference_plan, agent_vel, goal_vec, step):
@@ -175,7 +192,7 @@ def qp_terminal(reference_plan, agent_vel, goal_vec, step):
         )
     else:
         acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
-    return np.array([acc[0], acc[N]])
+    return np.array([acc[:N], acc[N:]]).T
 
 
 def calculate_sep_plane(crowd_pos):
@@ -430,32 +447,32 @@ for t in [0.5 * i for i in range(1)]:
             steps[:, 1] = planned_steps[N:]
             # env.set_trajectory(steps - steps[0])
             if "-tc" in sys.argv:
-                action = qp_terminal(
+                plan = qp_terminal(
                     planned_steps, agent_vel, goal_vec, step_counter
                 )
             elif "-lpv" in sys.argv:
                 planned_vels[:N] -= agent_vel[0]
                 planned_vels[N:] -= agent_vel[1]
-                action = qp_planning_vel(planned_steps, planned_vels, agent_vel)
+                plan = qp_planning_vel(planned_steps, planned_vels, agent_vel)
             elif "-c" in sys.argv:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_poss * 0)
-                action = qp_planning_col_avoid(
-                    planned_steps, agent_vel, horizon_crowd_poss
+                plan = qp_planning_col_avoid(
+                    planned_steps, agent_vel, horizon_crowd_poss, plan[1:]
                 )
             elif "-mc" in sys.argv:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_vels)
-                action = qp_planning_col_avoid(
-                    planned_steps, agent_vel, horizon_crowd_poss
+                plan = qp_planning_col_avoid(
+                    planned_steps, agent_vel, horizon_crowd_poss, plan[1:]
                 )
             else:
-                action = qp_planning(planned_steps, agent_vel)
+                plan = qp_planning(planned_steps, agent_vel)
         else:
-            action = qp(goal_vec, agent_vel, action)
+            plan = qp(goal_vec, agent_vel)
 
         vels.append(np.linalg.norm(env.current_vel))
-        obs, reward, terminated, truncated, info = env.step(action)
+        obs, reward, terminated, truncated, info = env.step(plan[0])
         return_ += reward
         None if "-nr" in sys.argv else env.render()
         if terminated or truncated:
