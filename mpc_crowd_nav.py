@@ -12,9 +12,24 @@ AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
 DT = 0.1
 MAX_STEPS = 4 / DT  # The episode is 4 seconds
-N = 20
+N = 30
 TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
 DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
+rot_mat = lambda rad : np.array([
+    [np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]
+])
+def gen_octagone(radius):
+    octagone = [[radius, 0]]
+    for i in range(1, 9):
+        octagone.append(rot_mat(np.pi / 4) @ octagone[i - 1])
+    octagone_lines = []
+    for i in range(8):
+        m = (octagone[i][1] - octagone[i + 1][1]) / (octagone[i][0] - octagone[i + 1][0])
+        b = octagone[i][1] - m * octagone[i][0]
+        octagone_lines.append([m, b])
+    return octagone_lines
+OCTAGONE_ACC_LINES = gen_octagone(AGENT_MAX_ACC)
+OCTAGONE_VEL_LINES = gen_octagone(AGENT_MAX_VEL)
 
 """
 Matrices representing dynamics
