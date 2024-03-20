@@ -18,18 +18,18 @@ DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
 rot_mat = lambda rad : np.array([
     [np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]
 ])
-def gen_octagone(radius):
-    octagone = [[radius, 0]]
+def gen_octagon(radius):
+    octagon = [[radius, 0]]
     for i in range(1, 9):
-        octagone.append(rot_mat(np.pi / 4) @ octagone[i - 1])
-    octagone_lines = []
+        octagon.append(rot_mat(np.pi / 4) @ octagon[i - 1])
+    octagon_lines = []
     for i in range(8):
-        m = (octagone[i][1] - octagone[i + 1][1]) / (octagone[i][0] - octagone[i + 1][0])
-        b = octagone[i][1] - m * octagone[i][0]
-        octagone_lines.append([m, b])
-    return octagone_lines
-OCTAGONE_ACC_LINES = gen_octagone(AGENT_MAX_ACC)
-OCTAGONE_VEL_LINES = gen_octagone(AGENT_MAX_VEL)
+        m = (octagon[i][1] - octagon[i + 1][1]) / (octagon[i][0] - octagon[i + 1][0])
+        b = octagon[i][1] - m * octagon[i][0]
+        octagon_lines.append([m, b])
+    return octagon_lines
+OCTAGON_ACC_LINES = gen_octagon(AGENT_MAX_ACC)
+OCTAGON_VEL_LINES = gen_octagon(AGENT_MAX_VEL)
 
 """
 Matrices representing dynamics
@@ -110,9 +110,38 @@ def qp(goal_vec, agent_vel):
     opt_M = 0.5 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.5 * np.repeat(agent_vel, N) @ M_va
-    acc_b = np.ones(2 * N) * AGENT_MAX_ACC
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
-    acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
+    # passive safety
+    term_const_M = M_va[[N - 1, 2 * N - 1], :]
+    term_const_b = -agent_vel
+
+    const_M = []
+    const_b = []
+    # acceleration/control constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(OCTAGON_ACC_LINES):
+        sgn = 1 if i < 4 else -1
+        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_a = np.ones(N) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # velocity constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_VEL
+    for i, line in enumerate(OCTAGON_VEL_LINES):
+        sgn = 1 if i < 4 else -1
+        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
+        const_M.append(sgn * M_v @ M_va)
+        const_b.append(sgn * b_v)
+
+    acc = solve_qp(
+        opt_M, opt_V,
+        # lb=-acc_b, ub=acc_b,
+        G=np.vstack(const_M), h=np.hstack(const_b),
+        A=term_const_M, b=term_const_b,
+        solver="clarabel"
+    )
     return np.array([acc[:N], acc[N:]]).T
 
 
@@ -131,14 +160,35 @@ def qp_planning(reference_plan, agent_vel):
     opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
-    acc_b = np.ones(2 * N) * AGENT_MAX_ACC
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     # passive safety
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
+    const_M = []
+    const_b = []
+    # acceleration/control constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(OCTAGON_ACC_LINES):
+        sgn = 1 if i < 4 else -1
+        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_a = np.ones(N) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # velocity constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_VEL
+    for i, line in enumerate(OCTAGON_VEL_LINES):
+        sgn = 1 if i < 4 else -1
+        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
+        const_M.append(sgn * M_v @ M_va)
+        const_b.append(sgn * b_v)
+
     acc = solve_qp(
-        opt_M, opt_V, lb=-acc_b, ub=acc_b,
+        opt_M, opt_V,
+        # lb=-acc_b, ub=acc_b,
+        G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel"
     )
@@ -159,17 +209,38 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 0.2 * np.eye(2 * N) + 0.15 * M_va.T @ M_va + M_xa.T @ M_xa
+    opt_M = 0.26 * np.eye(2 * N) + 0.2 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
-        0.15 * (-reference_vels).T @ M_va
-    acc_b = np.ones(2 * N) * AGENT_MAX_ACC
+        0.2 * (-reference_vels).T @ M_va
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     # passive safety
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
+    const_M = []
+    const_b = []
+    # acceleration/control constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(OCTAGON_ACC_LINES):
+        sgn = 1 if i < 4 else -1
+        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_a = np.ones(N) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # velocity constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_VEL
+    for i, line in enumerate(OCTAGON_VEL_LINES):
+        sgn = 1 if i < 4 else -1
+        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
+        const_M.append(sgn * M_v @ M_va)
+        const_b.append(sgn * b_v)
+
     acc = solve_qp(
-        opt_M, opt_V, lb=-acc_b, ub=acc_b,
+        opt_M, opt_V,
+        # lb=-acc_b, ub=acc_b,
+        G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel"
     )
@@ -328,7 +399,7 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan):
     opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
-    acc_b = np.ones(2 * N) * AGENT_MAX_ACC
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
@@ -340,18 +411,31 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan):
         M_cac = -M_ca @ M_xa
         const_M.append(M_cac)
         const_b.append(v_cb)
-    # const_M.append(np.hstack([
-    #     np.diag(np.append(old_plan[:, 0] / np.linalg.norm(old_plan, axis=-1), 1)),
-    #     np.diag(np.append(old_plan[:, 1] / np.linalg.norm(old_plan, axis=-1), 1)),
-    # ]))
-    # const_b.append(np.ones(N) * AGENT_MAX_ACC)
 
     # passive safety
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
+    # acceleration/control constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(OCTAGON_ACC_LINES):
+        sgn = 1 if i < 4 else -1
+        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_a = np.ones(N) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # velocity constraint using the inner octagon of a circle with radius
+    # AGENT_MAX_VEL
+    for i, line in enumerate(OCTAGON_VEL_LINES):
+        sgn = 1 if i < 4 else -1
+        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
+        const_M.append(sgn * M_v @ M_va)
+        const_b.append(sgn * b_v)
+
     acc = solve_qp(
-        opt_M, opt_V, lb=-acc_b, ub=acc_b,
+        opt_M, opt_V,
+        # lb=-acc_b, ub=acc_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel"
