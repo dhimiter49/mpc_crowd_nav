@@ -1,9 +1,9 @@
 import sys
+from tqdm import tqdm
 import fancy_gym
 import gymnasium as gym
 import numpy as np
 import scipy
-from numpy import ndarray
 from qpsolvers import solve_qp
 
 
@@ -15,9 +15,12 @@ MAX_STEPS = 4 / DT  # The episode is 4 seconds
 N = 30
 TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
 DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
-rot_mat = lambda rad : np.array([
-    [np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]
-])
+
+
+def rot_mat(rad):
+    return np.array([[np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]])
+
+
 def gen_octagon(radius):
     octagon = [[radius, 0]]
     for i in range(1, 9):
@@ -28,8 +31,11 @@ def gen_octagon(radius):
         b = octagon[i][1] - m * octagon[i][0]
         octagon_lines.append([m, b])
     return octagon_lines
+
+
 OCTAGON_ACC_LINES = gen_octagon(AGENT_MAX_ACC)
 OCTAGON_VEL_LINES = gen_octagon(AGENT_MAX_VEL)
+
 
 """
 Matrices representing dynamics
@@ -51,13 +57,16 @@ M_xa = scipy.linalg.toeplitz(
 )
 M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
-).reshape(2 * N ,2 * N)
+).reshape(2 * N, 2 * N)
 M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
 M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
-).reshape(2 * N ,2 * N)
-crowd_const_mat = lambda n_crowd : np.zeros((n_crowd, 4 * n_crowd))
+).reshape(2 * N, 2 * N)
 alpha, beta, epsilon = 0.1, 100, 1e-4
+
+
+def crowd_const_mat(n_crowd):
+    return np.zeros((n_crowd, 4 * n_crowd))
 
 
 def linear_planner(goal_vec):
@@ -77,7 +86,7 @@ def linear_planner(goal_vec):
     """
     steps = np.zeros((N, 2))
     vels = np.stack(
-        [AGENT_MAX_VEL / np.linalg.norm(goal_vec) * goal_vec] * N
+        [(AGENT_MAX_VEL + 1) / np.linalg.norm(goal_vec) * goal_vec] * N
     ).reshape(N, 2)
     if AGENT_MAX_VEL * DT > np.linalg.norm(goal_vec):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
@@ -89,9 +98,9 @@ def linear_planner(goal_vec):
         i / np.linalg.norm(goal_vec) * goal_vec for i in oneD_steps
     ])
     n_steps = min(N, len(oneD_steps))
-    steps[:n_steps,:] = twoD_steps[:n_steps]
-    steps[n_steps:,:] += goal_vec
-    vels[n_steps - 1:,:] = np.zeros(2)
+    steps[:n_steps, :] = twoD_steps[:n_steps]
+    steps[n_steps:, :] += goal_vec
+    vels[n_steps - 1:, :] = np.zeros(2)
     return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
@@ -197,7 +206,8 @@ def qp_planning(reference_plan, agent_vel):
 
 def qp_planning_vel(reference_plan, reference_vels, agent_vel):
     """
-    Optimize navigation by using a reference plan for the upcoming horizon.
+    Optimize navigation by using a reference plan for the trajectory and the velocity in
+    the upcoming horizon.
 
     Args:
         reference_plan (numpy.ndarray): vector of reference points with same size as the
@@ -262,15 +272,15 @@ def qp_terminal(reference_plan, agent_vel, goal_vec, step):
     # horizon = min(MAX_STEPS - step, N) if "-dh" in sys.argv else N
     opt_M = (0.5 + M_xa ** 2) * np.eye(2 * N)
     opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
-    acc_b = np.ones(2 * N) * (AGENT_MAX_ACC +  0.5) * DT
+    acc_b = np.ones(2 * N) * (AGENT_MAX_ACC + 0.5) * DT
 
     if np.linalg.norm(goal_vec) <= DIST_TO_STOP_FROM_MAX + AGENT_MAX_VEL * DT:
         time_after_stop = (np.linalg.norm(goal_vec) / AGENT_MAX_ACC * 2) ** 0.5
-        start = int(-(- time_after_stop //  DT))  # ceiling function
+        start = int(-(- time_after_stop // DT))  # ceiling function
         eq_con_M = np.stack(
-            [M_xa[start : N], M_xa[N + start :]]
+            [M_xa[start:N], M_xa[N + start:]]
         ).reshape(-1, 2 * N)
-        _M_xv = np.stack([M_xv[start : N], M_xv[N + start :]]).flatten()
+        _M_xv = np.stack([M_xv[start:N], M_xv[N + start:]]).flatten()
         eq_con_b = np.repeat(goal_vec, N - start) -\
             _M_xv * np.repeat(agent_vel, N - start)
         acc = solve_qp(
@@ -339,26 +349,26 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
     n_crowd = len(crowd_poss)
     M_cc = crowd_const_mat(n_crowd)  # crowd constraint matrix
     for i, pos in enumerate(crowd_poss):
-        M_cc[i][i * 4 : i * 4 + 2] = pos
+        M_cc[i][i * 4:i * 4 + 2] = pos
         M_cc[i][i * 4 + 2] = -1
 
     # robot position is always origin
-    M_ca = crowd_const_mat(n_crowd) # agent constraint matrix
+    M_ca = crowd_const_mat(n_crowd)  # agent constraint matrix
     for i in range(n_crowd):
-        M_ca[i][i * 4 + 2 : i * 4 + 4] = -1
+        M_ca[i][i * 4 + 2:i * 4 + 4] = -1
     M_cs = crowd_const_mat(n_crowd)  # sep normal constraint
     for i in range(n_crowd):
-        M_cs[i][i * 4 : i * 4 + 2] = 1
+        M_cs[i][i * 4:i * 4 + 2] = 1
     M_cls = crowd_const_mat(n_crowd)  # old sep normal constraint
     for i in range(n_crowd):
-        M_cls[i][i * 4 : i * 4 + 2] = old_sep_planes[i * 3 : i * 3 + 2]
+        M_cls[i][i * 4:i * 4 + 2] = old_sep_planes[i * 3:i * 3 + 2]
 
     opt_M = np.eye((4 * n_crowd)) * beta
     for i in range(n_crowd):
         opt_M[i * 4 + 3, i * 4 + 3] = alpha
     opt_V = -np.ones(4 * n_crowd)
     for i in range(n_crowd):
-        opt_V[i * 4 : i * 4 + 3] *= 2 * old_sep_planes[i * 3 : i * 3 + 3]
+        opt_V[i * 4:i * 4 + 3] *= 2 * old_sep_planes[i * 3:i * 3 + 3]
     sep_planes = solve_qp(
         opt_M, opt_V,
         G=np.vstack([M_cc, -M_ca, -M_cs, M_cs, -M_cls, M_cls]),
@@ -444,8 +454,8 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan):
     if acc is None:
         print("Executing last computed trajectory for braking!")
         acc = np.zeros(2 * N)
-        acc[0 : N - 1] = old_plan[:, 0]
-        acc[N : 2 * N - 1] = old_plan[:, 1]
+        acc[0:N - 1] = old_plan[:, 0]
+        acc[N:2 * N - 1] = old_plan[:, 1]
 
     return np.array([acc[:N], acc[N:]]).T
 
@@ -467,6 +477,7 @@ def calculate_crowd_positions(crowd_poss, crowd_vels):
     return np.stack([crowd_poss] * N) + np.einsum(
         'ijk,i->ijk', np.stack([crowd_vels] * N, 0) * DT, np.arange(0, N)
     )
+
 
 def sep_planes_from_plan(plan, num_crowd):
     """
@@ -492,7 +503,6 @@ plan = np.ones((N, 2))
 print("Observation shape: ", env.observation_space.shape)
 print("Action shape: ", env.action_space.shape)
 
-from tqdm import tqdm
 
 for t in [0.5 * i for i in range(1)]:
     coeff = t
@@ -505,36 +515,36 @@ for t in [0.5 * i for i in range(1)]:
                 if isinstance(obs, tuple):
                     goal_vec, crowd_poss, agent_vel, crowd_vels, wall_dist = (
                         obs[0][: 2],
-                        obs[0][2 : 2 + n_crowd],
+                        obs[0][2:2 + n_crowd],
                         obs[0][n_crowd + 2: n_crowd + 4],
-                        obs[0][n_crowd + 4 : 2 * n_crowd + 4],
-                        obs[0][2 * n_crowd + 4 :]
+                        obs[0][n_crowd + 4:2 * n_crowd + 4],
+                        obs[0][2 * n_crowd + 4:]
                     )
                 else:
                     pos_idx = len(obs) // 2
                     goal_vec, crowd_poss, agent_vel, crowd_vels, wall_dist = (
                         obs[: 2],
-                        obs[2 : 2 + n_crowd],
-                        obs[2 + n_crowd : n_crowd + 4],
-                        obs[n_crowd + 4 : 2 * n_crowd + 4],
-                        obs[2 * n_crowd + 4 :]
+                        obs[2:2 + n_crowd],
+                        obs[2 + n_crowd:n_crowd + 4],
+                        obs[n_crowd + 4:2 * n_crowd + 4],
+                        obs[2 * n_crowd + 4:]
                     )
                 crowd_vels.resize(len(crowd_vels) // 2, 2)
             if "-c" in sys.argv:
                 if isinstance(obs, tuple):
                     goal_vec, crowd_poss, agent_vel, wall_dist = (
                         obs[0][: 2],
-                        obs[0][2 : n_crowd + 2],
-                        obs[0][n_crowd + 2 : n_crowd + 4],
-                        obs[0][n_crowd + 4 :]
+                        obs[0][2:n_crowd + 2],
+                        obs[0][n_crowd + 2:n_crowd + 4],
+                        obs[0][n_crowd + 4:]
                     )
                 else:
                     pos_idx = len(obs) // 2
                     goal_vec, crowd_poss, agent_vel, wall_dist = (
-                        obs[: 2],
-                        obs[2 : n_crowd + 2],
-                        obs[n_crowd + 2 : n_crowd + 4],
-                        obs[n_crowd + 4 :]
+                        obs[:2],
+                        obs[2:n_crowd + 2],
+                        obs[n_crowd + 2:n_crowd + 4],
+                        obs[n_crowd + 4:]
                     )
             crowd_poss.resize(len(crowd_poss) // 2, 2)
         else:
@@ -544,12 +554,12 @@ for t in [0.5 * i for i in range(1)]:
                 goal_vec, agent_vel = obs[:2], obs[2:4]
 
         if ("-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or
-            "-c" in sys.argv or "-mc" in sys.argv):
+                "-c" in sys.argv or "-mc" in sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
-            steps= np.zeros((N, 2))
+            steps = np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
             steps[:, 1] = planned_steps[N:]
-            # env.set_trajectory(steps - steps[0])
+            env.set_trajectory(steps - steps[0], planned_vels)
             if "-tc" in sys.argv:
                 plan = qp_terminal(
                     planned_steps, agent_vel, goal_vec, step_counter
@@ -588,4 +598,4 @@ for t in [0.5 * i for i in range(1)]:
             return_ = 0
             step_counter = 0
             obs = env.reset()
-    print("Coeff: " , coeff, " Mean: ", np.mean(returns))
+    print("Coeff: ", coeff, " Mean: ", np.mean(returns))
