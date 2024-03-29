@@ -99,7 +99,7 @@ def linear_planner(goal_vec):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
     else:
         oneD_steps = np.arange(
-            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), 1.1 * AGENT_MAX_VEL * DT
+            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), AGENT_MAX_VEL * DT
         )
     twoD_steps = np.array([
         i / np.linalg.norm(goal_vec) * goal_vec for i in oneD_steps
@@ -529,6 +529,7 @@ else:
     env = gym.make("fancy/Navigation-v0", width=20, height=20)
 returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
+ep_counter = 0
 obs = env.reset()
 plan = np.ones((N, 2))
 print("Observation shape: ", env.observation_space.shape)
