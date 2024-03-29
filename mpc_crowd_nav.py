@@ -17,6 +17,13 @@ TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
 DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
 
 
+# debug
+COUNTER_VIOLATIONS = 0
+IN_VIOLATION = False
+LAST_PREDICTED_STATES = np.zeros((N, 2))
+LAST_PREDICTED_VELOCITY = np.zeros((N, 2))
+
+
 def rot_mat(rad):
     return np.array([[np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]])
 
@@ -390,7 +397,7 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
     return sep_planes
 
 
-def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan):
+def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
     collision avoidance constraints on crowd where each member is assumed to be a circle
@@ -448,14 +455,38 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan):
         # lb=-acc_b, ub=acc_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
-        solver="clarabel"
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
     )
 
+    global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
     if acc is None:
         print("Executing last computed trajectory for braking!")
+        global IN_VIOLATION, COUNTER_VIOLATIONS
+        if not IN_VIOLATION:
+            COUNTER_VIOLATIONS += 1
+            IN_VIOLATION = True
+        dist_to_crowd = np.linalg.norm(crowd_poss[0], axis=-1)
+        print("Margin from sep plane: ", min(dist_to_crowd - 4 * PHYSICAL_SPACE))
+        print("Current agent pos: ", agent_pos,
+              " Diff in position: ", LAST_PREDICTED_STATES[0] - agent_pos)
+        print("Velocity: ", agent_vel,
+              " Diff in velocity: ", LAST_PREDICTED_VELOCITY[0] - agent_vel)
+        # input()
         acc = np.zeros(2 * N)
         acc[0:N - 1] = old_plan[:, 0]
         acc[N:2 * N - 1] = old_plan[:, 1]
+    else:
+        position = np.repeat(agent_pos, N) + M_xv * np.repeat(agent_vel, N) + M_xa @ acc
+        velocity = np.repeat(agent_vel, N) + M_va @ acc
+        LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
+        LAST_PREDICTED_VELOCITY = np.array([velocity[:N], velocity[N:]]).T
+        IN_VIOLATION = False
 
     return np.array([acc[:N], acc[N:]]).T
 
@@ -572,13 +603,21 @@ for t in [0.5 * i for i in range(1)]:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_poss * 0)
                 plan = qp_planning_col_avoid(
-                    planned_steps, agent_vel, horizon_crowd_poss, plan[1:]
+                    planned_steps,
+                    agent_vel,
+                    horizon_crowd_poss,
+                    plan[1:],
+                    env.current_pos
                 )
             elif "-mc" in sys.argv:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_vels)
                 plan = qp_planning_col_avoid(
-                    planned_steps, agent_vel, horizon_crowd_poss, plan[1:]
+                    planned_steps,
+                    agent_vel,
+                    horizon_crowd_poss,
+                    plan[1:],
+                    env.current_pos
                 )
             else:
                 plan = qp_planning(planned_steps, agent_vel)
@@ -597,5 +636,7 @@ for t in [0.5 * i for i in range(1)]:
             returns.append(return_)
             return_ = 0
             step_counter = 0
+            ep_counter += 1
             obs = env.reset()
     print("Coeff: ", coeff, " Mean: ", np.mean(returns))
+    print("Episodes: ", ep_counter, " Braking executions: ", COUNTER_VIOLATIONS)
