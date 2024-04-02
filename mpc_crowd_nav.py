@@ -98,6 +98,7 @@ F_b = np.hstack([np.hstack([F_b] * M)] * 2)
 M_bv_f = M_bv * F_p
 M_ba_f = (M_ba.T * F_p).T
 M_bva_f = (M_bva.T * F_p).T
+M_bva_b = (M_bva.T * F_b).T
 
 
 def crowd_const_mat(n_crowd):
@@ -518,7 +519,112 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
     return np.array([acc[:N], acc[N:]]).T
 
 
-def calculate_crowd_positions(crowd_poss, crowd_vels):
+def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
+    """
+    Optimize navigation by using a reference plan for the upcoming horizon and use
+    collision avoidance constraints on crowd where each member is assumed to be a circle.
+    Safety is computed in a cascading manner where for each timestep in the horizon a
+    braking trajecotry is computed. This alows us to decouple the trajectory for safety
+    and that for planning.
+
+    Args:
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
+        agent_vel (numpy.ndarray): vector representing the current agent velocity
+        crowd_poss (numpy.ndarray): 2D position of each member of the crowd
+        old_plan (numpy.ndarrray): plan from last iteration
+    Return:
+        (numpy.ndarray): array with two elements representing the change in velocity (acc-
+            eleration) to be applied in the next step
+    """
+    reference_plan_b = np.zeros(N * M * 2)
+    for i in range(M):
+        reference_plan_b[i * N] = reference_plan[i]
+        reference_plan_b[M * N + i * N] = reference_plan[M + i]
+    opt_M = 0.25 * M_bva_f.T @ M_bva_f + M_ba_f.T @ M_ba_f
+    opt_V = (-reference_plan_b + M_bv_f * np.repeat(agent_vel, M * N)).T @ M_ba_f +\
+        0.25 * np.repeat(agent_vel, M * N) @ M_bva_f
+    acc_b = np.ones(2 * M * N) * AGENT_MAX_ACC
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    for member in range(len(crowd_poss[1])):
+        poss = crowd_poss[:, member, :]
+        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
+        M_ca = np.hstack([np.eye(M * N) * vec[:, 0], np.eye(M * N) * vec[:, 1]])
+        v_cb = M_ca @ (-poss.flatten("F") + M_bv * np.repeat(agent_vel, M * N)) -\
+            np.array([4 * PHYSICAL_SPACE] * M * N)
+        M_cac = -M_ca @ M_ba
+        const_M.append(M_cac)
+        const_b.append(v_cb)
+
+    # passive safety
+    idxs = np.hstack([
+        np.array([i * N - 1 for i in range(1, M + 1)]),
+        np.array([M * N + i * N - 1 for i in range(1, M + 1)])
+    ])
+    term_const_M = M_bva_b[idxs, :]
+    term_const_b = -np.repeat(agent_vel, M)
+
+    # acceleration/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(M * N) * -line[0], np.eye(M * N)])
+        b_a = np.ones(M * N) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # velocity constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_VEL
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
+        M_v = np.hstack([np.eye(M * N) * -line[0], np.eye(M * N)])
+        b_v = np.ones(M * N) * line[1] - M_v @ np.repeat(agent_vel, M * N)
+        const_M.append(sgn * M_v @ M_bva)
+        const_b.append(sgn * b_v)
+
+    acc = solve_qp(
+        opt_M, opt_V,
+        lb=-acc_b, ub=acc_b,
+        G=np.vstack(const_M), h=np.hstack(const_b),
+        A=term_const_M, b=term_const_b,
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
+    )
+
+    # global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
+    if acc is None:
+        print("Executing last computed trajectory for braking!")
+        global IN_VIOLATION, COUNTER_VIOLATIONS
+        if not IN_VIOLATION:
+            COUNTER_VIOLATIONS += 1
+            IN_VIOLATION = True
+        dist_to_crowd = np.linalg.norm(crowd_poss[0], axis=-1)
+        print("Margin from sep plane: ", min(dist_to_crowd - 4 * PHYSICAL_SPACE))
+        print("Current agent pos: ", agent_pos,
+              " Diff in position: ", LAST_PREDICTED_STATES[0] - agent_pos)
+        print("Velocity: ", agent_vel,
+              " Diff in velocity: ", LAST_PREDICTED_VELOCITY[0] - agent_vel)
+        # input()
+        acc = np.zeros(2 * N)
+        acc[0:N - 1] = old_plan[:, 0]
+        acc[N:2 * N - 1] = old_plan[:, 1]
+    else:
+    #     position = np.repeat(agent_pos, N) + M_xv * np.repeat(agent_vel, N) + M_xa @ acc
+    #     velocity = np.repeat(agent_vel, N) + M_va @ acc
+    #     LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
+    #     LAST_PREDICTED_VELOCITY = np.array([velocity[:N], velocity[N:]]).T
+    #     IN_VIOLATION = False
+        acc = np.hstack([acc[:N], acc[M * N:M * N + N]])
+
+    return np.array([acc[:N], acc[N:]]).T
+
+
+def calculate_crowd_positions(crowd_poss, crowd_vels, horizon=N):
     """
     Calculate the crowd positions for the next horizon given the constant velocity for
     each member. The formula P_i = p_0 + i * v * dt, where for point i in horizon the
@@ -537,6 +643,23 @@ def calculate_crowd_positions(crowd_poss, crowd_vels):
     )
 
 
+def cascade_crowd_positions(crowd_poss):
+    """
+    Take crowd positions and cascade them meaning from [1,..., M + N] converrt to
+    [1, 2,.., N, 2,..., N + 1, 3,..., M, M + 2,..., M + N].
+
+    Args:
+        crowd_poss (numpy.ndarray): an array of size (n_crowd, 2) with the current
+            positions of each member
+    Return:
+        (numpy.ndarray): with the predicted positions of the crowd throughout the horizon
+    """
+    casc_crowd_poss = np.zeros((M * N,) + crowd_poss.shape[1:])
+    for i in range(M):
+        casc_crowd_poss[i * N:(i + 1) * N, :, :] = crowd_poss[i:i + N, :, :]
+    return casc_crowd_poss
+
+
 def sep_planes_from_plan(plan, num_crowd):
     """
     From given plan given as a vector calculate the normal representation. Assuming that
@@ -549,11 +672,11 @@ def sep_planes_from_plan(plan, num_crowd):
 
 separating_planes = None
 if "-c" in sys.argv:
-    env = gym.make("fancy/CrowdNavigationStatic-v0", width=20, height=20)
-elif "-mc" in sys.argv:
-    env = gym.make("fancy/CrowdNavigation-v0", width=10, height=10)
+    env = gym.make("fancy/CrowdNavigationStatic-v0", width=25, height=25)
+elif "-mc" in sys.argv or "-csmc" in sys.argv:
+    env = gym.make("fancy/CrowdNavigation-v0", width=12, height=12)
 else:
-    env = gym.make("fancy/Navigation-v0", width=20, height=20)
+    env = gym.make("fancy/Navigation-v0", width=40, height=20)
 returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
 ep_counter = 0
@@ -568,9 +691,9 @@ for t in [0.5 * i for i in range(1)]:
     returns, return_ = [], 0
     for i in tqdm(range(4000)):
         step_counter += 1
-        if "-mc" in sys.argv or "-c" in sys.argv:
+        if "-mc" in sys.argv or "-c" in sys.argv or "-csmc" in sys.argv:
             n_crowd = 4 * 2
-            if "-mc" in sys.argv:
+            if "-mc" in sys.argv or "-csmc":
                 if isinstance(obs, tuple):
                     goal_vec, crowd_poss, agent_vel, crowd_vels, wall_dist = (
                         obs[0][: 2],
@@ -613,7 +736,7 @@ for t in [0.5 * i for i in range(1)]:
                 goal_vec, agent_vel = obs[:2], obs[2:4]
 
         if ("-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or
-                "-c" in sys.argv or "-mc" in sys.argv or "-cs" in sys.argv):
+                "-c" in sys.argv or "-mc" in sys.argv or "-csmc" in sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
             steps = np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
@@ -647,20 +770,21 @@ for t in [0.5 * i for i in range(1)]:
                     plan[1:],
                     env.current_pos
                 )
-            elif "-cs" in sys.argv:
+            elif "-csmc" in sys.argv:
                 # env.set_separating_planes()
                 planned_steps, planned_vels = linear_planner(goal_vec, M)
                 steps = np.zeros((M, 2))
                 steps[:, 0] = planned_steps[:M]
                 steps[:, 1] = planned_steps[M:]
                 env.set_trajectory(steps - steps[0], planned_vels)
-                # horizon_crowd_poss = calculate_crowd_positions(
-                #     crowd_poss, crowd_vels, M + N
-                # )
+                horizon_crowd_poss = calculate_crowd_positions(
+                    crowd_poss, crowd_vels, M + N
+                )
+                horizon_crowd_poss = cascade_crowd_positions(horizon_crowd_poss)
                 plan = qp_planning_casc_safety(
                     planned_steps,
                     agent_vel,
-                    None,
+                    horizon_crowd_poss,
                     plan[1:],
                     env.current_pos
                 )
