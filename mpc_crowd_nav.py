@@ -28,20 +28,20 @@ def rot_mat(rad):
     return np.array([[np.cos(rad), -np.sin(rad)], [np.sin(rad), np.cos(rad)]])
 
 
-def gen_octagon(radius):
-    octagon = [[radius, 0]]
-    for i in range(1, 9):
-        octagon.append(rot_mat(np.pi / 4) @ octagon[i - 1])
-    octagon_lines = []
-    for i in range(8):
-        m = (octagon[i][1] - octagon[i + 1][1]) / (octagon[i][0] - octagon[i + 1][0])
-        b = octagon[i][1] - m * octagon[i][0]
-        octagon_lines.append([m, b])
-    return octagon_lines
+def gen_polygon(radius, sides=8):
+    polygon = [[radius, 0]]
+    for i in range(1, sides + 1):
+        polygon.append(rot_mat(2 * np.pi / sides) @ polygon[i - 1])
+    polygon_lines = []
+    for i in range(sides):
+        m = (polygon[i][1] - polygon[i + 1][1]) / (polygon[i][0] - polygon[i + 1][0])
+        b = polygon[i][1] - m * polygon[i][0]
+        polygon_lines.append([m, b])
+    return polygon_lines
 
 
-OCTAGON_ACC_LINES = gen_octagon(AGENT_MAX_ACC)
-OCTAGON_VEL_LINES = gen_octagon(AGENT_MAX_VEL)
+POLYGON_ACC_LINES = gen_polygon(AGENT_MAX_ACC, sides=8)
+POLYGON_VEL_LINES = gen_polygon(AGENT_MAX_VEL, sides=8)
 
 
 """
@@ -88,12 +88,23 @@ M_va = np.stack(
 ).reshape(2 * N, 2 * N)
 alpha, beta, epsilon = 0.1, 100, 1e-4
 
+F_p = np.zeros(N)
+F_p[0] = 1
+F_p = np.hstack([np.hstack([F_p] * M)] * 2)
+F_b = np.zeros(N)
+F_b[-1] = 1
+F_b = np.hstack([np.hstack([F_b] * M)] * 2)
+
+M_bv_f = M_bv * F_p
+M_ba_f = (M_ba.T * F_p).T
+M_bva_f = (M_bva.T * F_p).T
+
 
 def crowd_const_mat(n_crowd):
     return np.zeros((n_crowd, 4 * n_crowd))
 
 
-def linear_planner(goal_vec):
+def linear_planner(goal_vec, horizon=N):
     """
     A naive plan that draws a straight path from the current agent position to the goal.
     The trajecotry is discretized by the maximum distance that the agent can traverse in
@@ -108,10 +119,10 @@ def linear_planner(goal_vec):
         (numpy.ndarray): array with size 2 * N where the first N elements are the x-coords
             and the second N elements are the y-coords
     """
-    steps = np.zeros((N, 2))
+    steps = np.zeros((horizon, 2))
     vels = np.stack(
-        [(AGENT_MAX_VEL + 1) / np.linalg.norm(goal_vec) * goal_vec] * N
-    ).reshape(N, 2)
+        [(AGENT_MAX_VEL + 1) / np.linalg.norm(goal_vec) * goal_vec] * horizon
+    ).reshape(horizon, 2)
     if AGENT_MAX_VEL * DT > np.linalg.norm(goal_vec):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
     else:
@@ -121,7 +132,7 @@ def linear_planner(goal_vec):
     twoD_steps = np.array([
         i / np.linalg.norm(goal_vec) * goal_vec for i in oneD_steps
     ])
-    n_steps = min(N, len(oneD_steps))
+    n_steps = min(horizon, len(oneD_steps))
     steps[:n_steps, :] = twoD_steps[:n_steps]
     steps[n_steps:, :] += goal_vec
     vels[n_steps - 1:, :] = np.zeros(2)
@@ -151,18 +162,18 @@ def qp(goal_vec, agent_vel):
 
     const_M = []
     const_b = []
-    # acceleration/control constraint using the inner octagon of a circle with radius
+    # acceleration/control constraint using the inner polygon of a circle with radius
     # AGENT_MAX_ACC
-    for i, line in enumerate(OCTAGON_ACC_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
         M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_a = np.ones(N) * line[1]
         const_M.append(sgn * M_a)
         const_b.append(sgn * b_a)
-    # velocity constraint using the inner octagon of a circle with radius
+    # velocity constraint using the inner polygon of a circle with radius
     # AGENT_MAX_VEL
-    for i, line in enumerate(OCTAGON_VEL_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
         M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
         const_M.append(sgn * M_v @ M_va)
@@ -201,18 +212,18 @@ def qp_planning(reference_plan, agent_vel):
 
     const_M = []
     const_b = []
-    # acceleration/control constraint using the inner octagon of a circle with radius
+    # acceleration/control constraint using the inner polygon of a circle with radius
     # AGENT_MAX_ACC
-    for i, line in enumerate(OCTAGON_ACC_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
         M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_a = np.ones(N) * line[1]
         const_M.append(sgn * M_a)
         const_b.append(sgn * b_a)
-    # velocity constraint using the inner octagon of a circle with radius
+    # velocity constraint using the inner polygon of a circle with radius
     # AGENT_MAX_VEL
-    for i, line in enumerate(OCTAGON_VEL_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
         M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
         const_M.append(sgn * M_v @ M_va)
@@ -254,18 +265,18 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
 
     const_M = []
     const_b = []
-    # acceleration/control constraint using the inner octagon of a circle with radius
+    # acceleration/control constraint using the inner polygon of a circle with radius
     # AGENT_MAX_ACC
-    for i, line in enumerate(OCTAGON_ACC_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
         M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_a = np.ones(N) * line[1]
         const_M.append(sgn * M_a)
         const_b.append(sgn * b_a)
-    # velocity constraint using the inner octagon of a circle with radius
+    # velocity constraint using the inner polygon of a circle with radius
     # AGENT_MAX_VEL
-    for i, line in enumerate(OCTAGON_VEL_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
         M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
         const_M.append(sgn * M_v @ M_va)
@@ -417,8 +428,7 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
 def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
-    collision avoidance constraints on crowd where each member is assumed to be a circle
-    with constant velocity
+    collision avoidance constraints on crowd where each member is assumed to be a circle.
 
     Args:
         reference_plan (numpy.ndarray): vector of reference points with same size as the
@@ -450,18 +460,18 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
-    # acceleration/control constraint using the inner octagon of a circle with radius
+    # acceleration/control constraint using the inner polygon of a circle with radius
     # AGENT_MAX_ACC
-    for i, line in enumerate(OCTAGON_ACC_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
         M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_a = np.ones(N) * line[1]
         const_M.append(sgn * M_a)
         const_b.append(sgn * b_a)
-    # velocity constraint using the inner octagon of a circle with radius
+    # velocity constraint using the inner polygon of a circle with radius
     # AGENT_MAX_VEL
-    for i, line in enumerate(OCTAGON_VEL_LINES):
-        sgn = 1 if i < 4 else -1
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
         M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
         b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
         const_M.append(sgn * M_v @ M_va)
@@ -522,8 +532,8 @@ def calculate_crowd_positions(crowd_poss, crowd_vels):
     Return:
         (numpy.ndarray): with the predicted positions of the crowd throughout the horizon
     """
-    return np.stack([crowd_poss] * N) + np.einsum(
-        'ijk,i->ijk', np.stack([crowd_vels] * N, 0) * DT, np.arange(0, N)
+    return np.stack([crowd_poss] * horizon) + np.einsum(
+        'ijk,i->ijk', np.stack([crowd_vels] * horizon, 0) * DT, np.arange(0, horizon)
     )
 
 
@@ -603,7 +613,7 @@ for t in [0.5 * i for i in range(1)]:
                 goal_vec, agent_vel = obs[:2], obs[2:4]
 
         if ("-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or
-                "-c" in sys.argv or "-mc" in sys.argv):
+                "-c" in sys.argv or "-mc" in sys.argv or "-cs" in sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
             steps = np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
@@ -634,6 +644,23 @@ for t in [0.5 * i for i in range(1)]:
                     planned_steps,
                     agent_vel,
                     horizon_crowd_poss,
+                    plan[1:],
+                    env.current_pos
+                )
+            elif "-cs" in sys.argv:
+                # env.set_separating_planes()
+                planned_steps, planned_vels = linear_planner(goal_vec, M)
+                steps = np.zeros((M, 2))
+                steps[:, 0] = planned_steps[:M]
+                steps[:, 1] = planned_steps[M:]
+                env.set_trajectory(steps - steps[0], planned_vels)
+                # horizon_crowd_poss = calculate_crowd_positions(
+                #     crowd_poss, crowd_vels, M + N
+                # )
+                plan = qp_planning_casc_safety(
+                    planned_steps,
+                    agent_vel,
+                    None,
                     plan[1:],
                     env.current_pos
                 )
