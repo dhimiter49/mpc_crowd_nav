@@ -58,14 +58,31 @@ M_xa = [[ M_xa |  0   ]
         [  0   | M_xa ]]
 """
 M_xv = np.hstack([np.arange(1, N + 1)] * 2) * DT
+M_bv = np.hstack([np.hstack([np.arange(i, N + i) for i in range(1, M + 1)])] * 2) * DT
 M_xa = scipy.linalg.toeplitz(
     np.array([(2 * i - 1) / 2 * DT ** 2 for i in range(1, N + 1)]),
     np.zeros(N)
 )
+M_ba = np.zeros((M * N, M * N))
+for i in range(M):
+    M_ba[i * N:i * N + N, i * N:i * N + N] = M_xa
+    for j in range(i):
+        M_ba[i * N, j * N] = DT ** 2 * (2 * (i + 1 - j) - 1) / 2
+M_ba = np.stack(
+    [np.hstack([M_ba, M_ba * 0]), np.hstack([M_ba * 0, M_ba])]
+).reshape(2 * M * N, 2 * M * N)
 M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
 ).reshape(2 * N, 2 * N)
 M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
+M_bva = np.zeros((M * N, M * N))
+for i in range(M):
+    M_bva[i * N:i * N + N, i * N:i * N + N] = M_va
+    for j in range(i):
+        M_bva[i * N, j * N] = DT * 1
+M_bva = np.stack(
+    [np.hstack([M_bva, M_bva * 0]), np.hstack([M_bva * 0, M_bva])]
+).reshape(2 * M * N, 2 * M * N)
 M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
 ).reshape(2 * N, 2 * N)
