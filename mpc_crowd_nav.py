@@ -128,7 +128,7 @@ def linear_planner(goal_vec, horizon=N):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
     else:
         oneD_steps = np.arange(
-            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), AGENT_MAX_VEL * DT
+            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), 2 * AGENT_MAX_VEL * DT
         )
     twoD_steps = np.array([
         i / np.linalg.norm(goal_vec) * goal_vec for i in oneD_steps
@@ -671,10 +671,11 @@ def sep_planes_from_plan(plan, num_crowd):
 
 
 separating_planes = None
-if "-c" in sys.argv:
-    env = gym.make("fancy/CrowdNavigationStatic-v0", width=25, height=25)
-elif "-mc" in sys.argv or "-csmc" in sys.argv:
-    env = gym.make("fancy/CrowdNavigation-v0", width=12, height=12)
+intersect = lambda ls_a, ls_b: bool(set(ls_a).intersection(ls_b))
+if intersect(["-c", "-csc"], sys.argv):
+    env = gym.make("fancy/CrowdNavigationStatic-v0")
+elif intersect(["-mc", "-csmc"], sys.argv):
+    env = gym.make("fancy/CrowdNavigation-v0")
 else:
     env = gym.make("fancy/Navigation-v0", width=40, height=20)
 returns, return_, vels, action = [], 0, [], [0, 0]
@@ -691,9 +692,9 @@ for t in [0.5 * i for i in range(1)]:
     returns, return_ = [], 0
     for i in tqdm(range(4000)):
         step_counter += 1
-        if "-mc" in sys.argv or "-c" in sys.argv or "-csmc" in sys.argv:
+        if intersect(["-mc", "-c", "-csmc", "-csc"], sys.argv):
             n_crowd = 4 * 2
-            if "-mc" in sys.argv or "-csmc":
+            if intersect(["-mc", "-csmc"], sys.argv):
                 if isinstance(obs, tuple):
                     goal_vec, crowd_poss, agent_vel, crowd_vels, wall_dist = (
                         obs[0][: 2],
@@ -712,7 +713,7 @@ for t in [0.5 * i for i in range(1)]:
                         obs[2 * n_crowd + 4:]
                     )
                 crowd_vels.resize(len(crowd_vels) // 2, 2)
-            if "-c" in sys.argv:
+            if intersect(["-c", "-csc"], sys.argv):
                 if isinstance(obs, tuple):
                     goal_vec, crowd_poss, agent_vel, wall_dist = (
                         obs[0][: 2],
@@ -735,8 +736,7 @@ for t in [0.5 * i for i in range(1)]:
             else:
                 goal_vec, agent_vel = obs[:2], obs[2:4]
 
-        if ("-lpv" in sys.argv or "-lp" in sys.argv or "-tc" in sys.argv or
-                "-c" in sys.argv or "-mc" in sys.argv or "-csmc" in sys.argv):
+        if intersect(["-lpv", "-lp", "-tc", "-c", "-mc", "-csmc", "-csc"], sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
             steps = np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
@@ -764,6 +764,24 @@ for t in [0.5 * i for i in range(1)]:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_vels)
                 plan = qp_planning_col_avoid(
+                    planned_steps,
+                    agent_vel,
+                    horizon_crowd_poss,
+                    plan[1:],
+                    env.current_pos
+                )
+            elif "-csc" in sys.argv:
+                # env.set_separating_planes()
+                planned_steps, planned_vels = linear_planner(goal_vec, M)
+                steps = np.zeros((M, 2))
+                steps[:, 0] = planned_steps[:M]
+                steps[:, 1] = planned_steps[M:]
+                env.set_trajectory(steps - steps[0], planned_vels)
+                horizon_crowd_poss = calculate_crowd_positions(
+                    crowd_poss, crowd_poss * 0, M + N
+                )
+                horizon_crowd_poss = cascade_crowd_positions(horizon_crowd_poss)
+                plan = qp_planning_casc_safety(
                     planned_steps,
                     agent_vel,
                     horizon_crowd_poss,
