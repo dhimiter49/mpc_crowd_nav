@@ -12,7 +12,8 @@ AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
 DT = 0.1
 MAX_STEPS = 4 / DT  # The episode is 4 seconds
-N = 30
+N = 21
+M = 20
 TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
 DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
 
@@ -67,7 +68,7 @@ M_ba = np.zeros((M * N, M * N))
 for i in range(M):
     M_ba[i * N:i * N + N, i * N:i * N + N] = M_xa
     for j in range(i):
-        M_ba[i * N, j * N] = DT ** 2 * (2 * (i + 1 - j) - 1) / 2
+        M_ba[i * N:(i + 1) * N, j * N] = np.repeat(DT ** 2 * (2 * (i + 1 - j) - 1) / 2, N)
 M_ba = np.stack(
     [np.hstack([M_ba, M_ba * 0]), np.hstack([M_ba * 0, M_ba])]
 ).reshape(2 * M * N, 2 * M * N)
@@ -79,7 +80,7 @@ M_bva = np.zeros((M * N, M * N))
 for i in range(M):
     M_bva[i * N:i * N + N, i * N:i * N + N] = M_va
     for j in range(i):
-        M_bva[i * N, j * N] = DT * 1
+        M_bva[i * N:(i + 1) * N, j * N] = np.repeat(DT * 1, N)
 M_bva = np.stack(
     [np.hstack([M_bva, M_bva * 0]), np.hstack([M_bva * 0, M_bva])]
 ).reshape(2 * M * N, 2 * M * N)
@@ -88,17 +89,17 @@ M_va = np.stack(
 ).reshape(2 * N, 2 * N)
 alpha, beta, epsilon = 0.1, 100, 1e-4
 
-F_p = np.zeros(N)
+F_p = np.zeros(N, dtype=int)
 F_p[0] = 1
 F_p = np.hstack([np.hstack([F_p] * M)] * 2)
-F_b = np.zeros(N)
+F_b = np.zeros(N, dtype=int)
 F_b[-1] = 1
 F_b = np.hstack([np.hstack([F_b] * M)] * 2)
 
-M_bv_f = M_bv * F_p
-M_ba_f = (M_ba.T * F_p).T
-M_bva_f = (M_bva.T * F_p).T
-M_bva_b = (M_bva.T * F_b).T
+M_bv_f = M_bv[np.nonzero(F_p)]
+M_ba_f = M_ba[np.nonzero(F_p)]
+M_bva_f = M_bva[np.nonzero(F_p)]
+M_bva_b = M_bva[np.nonzero(F_b)]
 
 
 def crowd_const_mat(n_crowd):
@@ -155,9 +156,9 @@ def qp(goal_vec, agent_vel):
     opt_M = 0.5 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.5 * np.repeat(agent_vel, N) @ M_va
-    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     # passive safety
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
@@ -205,9 +206,9 @@ def qp_planning(reference_plan, agent_vel):
     opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
-    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     # passive safety
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
@@ -258,9 +259,9 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
     opt_M = 0.26 * np.eye(2 * N) + 0.2 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.2 * (-reference_vels).T @ M_va
-    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
 
     # passive safety
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
@@ -410,7 +411,6 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
     opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
-    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
@@ -424,6 +424,7 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
         const_b.append(v_cb)
 
     # passive safety
+    # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
@@ -503,14 +504,9 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    reference_plan_b = np.zeros(N * M * 2)
-    for i in range(M):
-        reference_plan_b[i * N] = reference_plan[i]
-        reference_plan_b[M * N + i * N] = reference_plan[M + i]
     opt_M = 0.25 * M_bva_f.T @ M_bva_f + M_ba_f.T @ M_ba_f
-    opt_V = (-reference_plan_b + M_bv_f * np.repeat(agent_vel, M * N)).T @ M_ba_f +\
-        0.25 * np.repeat(agent_vel, M * N) @ M_bva_f
-    acc_b = np.ones(2 * M * N) * AGENT_MAX_ACC
+    opt_V = (-reference_plan + M_bv_f * np.repeat(agent_vel, M)).T @ M_ba_f +\
+        0.25 * np.repeat(agent_vel, M) @ M_bva_f
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
@@ -524,11 +520,8 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         const_b.append(v_cb)
 
     # passive safety
-    idxs = np.hstack([
-        np.array([i * N - 1 for i in range(1, M + 1)]),
-        np.array([M * N + i * N - 1 for i in range(1, M + 1)])
-    ])
-    term_const_M = M_bva_b[idxs, :]
+    # acc_b = np.ones(2 * M * N) * AGENT_MAX_ACC
+    term_const_M = M_bva_b
     term_const_b = -np.repeat(agent_vel, M)
 
     # acceleration/control constraint using the inner polygon of a circle with radius
@@ -550,7 +543,7 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
 
     acc = solve_qp(
         opt_M, opt_V,
-        lb=-acc_b, ub=acc_b,
+        # lb=-acc_b, ub=acc_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel",
