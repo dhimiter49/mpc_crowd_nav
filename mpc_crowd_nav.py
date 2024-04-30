@@ -89,6 +89,21 @@ M_va = np.stack(
 ).reshape(2 * N, 2 * N)
 alpha, beta, epsilon = 0.1, 100, 1e-4
 
+MV_xv = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
+np.fill_diagonal(MV_xv, 1 / 2 * DT)
+MV_xv = MV_xv[:, :-1]
+MV_xv = np.stack(
+    [np.hstack([MV_xv, MV_xv * 0]), np.hstack([MV_xv * 0, MV_xv])]
+).reshape(2 * N, 2 * (N - 1))
+
+acc_from_vel = np.zeros(N)
+acc_from_vel[:2] = np.array([1, -1])
+MV_a = scipy.linalg.toeplitz(acc_from_vel, np.zeros(N)) / DT
+MV_a = MV_a[:, :-1]
+MV_a = np.stack(
+    [np.hstack([MV_a, MV_a * 0]), np.hstack([MV_a * 0, MV_a])]
+).reshape(2 * N, 2 * (N - 1))
+
 F_p = np.zeros(N, dtype=int)
 F_p[0] = 1
 F_p = np.hstack([np.hstack([F_p] * M)] * 2)
@@ -239,6 +254,53 @@ def qp_planning(reference_plan, agent_vel):
         solver="clarabel"
     )
     return np.array([acc[:N], acc[N:]]).T
+
+
+def qp_vel_planning(reference_plan, agent_vel):
+    """
+    Velocity control.
+    Optimize navigation by using a reference plan for the upcoming horizon.
+
+    Args:
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
+        agent_vel (numpy.ndarray): vector representing the current agent velocity
+    Return:
+        (numpy.ndarray): array with two elements representing the change in velocity (acc-
+            eleration) to be applied in the next step
+    """
+    opt_M = MV_xv.T @ MV_xv
+    opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
+
+    const_M = []
+    const_b = []
+    # velocity/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_VEL
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
+        b_a = np.ones(N - 1) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # acceleration/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
+        agent_vel_ = np.zeros(2 * (N - 1))
+        agent_vel_[0], agent_vel_[N - 1] = agent_vel
+        MV_a_ = np.vstack([MV_a[:N - 1], MV_a[N:2 * N - 1]])
+        b_a = np.ones(N - 1) * line[1] + M_a @ agent_vel_ / DT
+        const_M.append(sgn * M_a @ MV_a_)
+        const_b.append(sgn * b_a)
+
+    acc = solve_qp(
+        opt_M, opt_V,
+        # lb=-acc_b, ub=acc_b,
+        G=np.vstack(const_M), h=np.hstack(const_b),
+        solver="clarabel"
+    )
+    return np.array([np.append(acc[:N - 1], 0), np.append(acc[N - 1:], 0)]).T
 
 
 def qp_planning_vel(reference_plan, reference_vels, agent_vel):
@@ -762,7 +824,10 @@ for t in [0.5 * i for i in range(1)]:
                     env.current_pos
                 )
             else:
-                plan = qp_planning(planned_steps, agent_vel)
+                if "-v" in sys.argv:
+                    plan = qp_vel_planning(planned_steps, agent_vel)
+                else:
+                    plan = qp_planning(planned_steps, agent_vel)
         else:
             plan = qp(goal_vec, agent_vel)
 
