@@ -695,17 +695,13 @@ for t in [0.5 * i for i in range(1)]:
             else:
                 goal_vec, agent_vel = obs[:2], obs[2:4]
 
-        if intersect(["-lpv", "-lp", "-tc", "-c", "-mc", "-csmc", "-csc"], sys.argv):
+        if intersect(["-lpv", "-lp", "-c", "-mc", "-csmc", "-csc"], sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
             steps = np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
             steps[:, 1] = planned_steps[N:]
             env.set_trajectory(steps - steps[0], planned_vels)
-            if "-tc" in sys.argv:
-                plan = qp_terminal(
-                    planned_steps, agent_vel, goal_vec, step_counter
-                )
-            elif "-lpv" in sys.argv:
+            if "-lpv" in sys.argv:
                 planned_vels[:N] -= agent_vel[0]
                 planned_vels[N:] -= agent_vel[1]
                 plan = qp_planning_vel(planned_steps, planned_vels, agent_vel)
