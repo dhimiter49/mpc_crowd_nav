@@ -293,40 +293,6 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
     return np.array([acc[:N], acc[N:]]).T
 
 
-def qp_terminal(reference_plan, agent_vel, goal_vec, step):
-    """
-    Optimize navigation by using a reference plan for the upcoming horizon and speficying
-    a terminal constraint on the position of the agent.
-
-    Args:
-        goal_vec (numpy.ndarray): vector in 2 plane going from current position to goal
-        agent_vel (numpy.ndarray): vector representing the current agent velocity
-    Return:
-        (numpy.ndarray): array with two elements representing the change in velocity (acc-
-            eleration) to be applied in the next step
-    """
-    # horizon = min(MAX_STEPS - step, N) if "-dh" in sys.argv else N
-    opt_M = (0.5 + M_xa ** 2) * np.eye(2 * N)
-    opt_V = M_xa.T @ (-reference_plan + M_xv * np.repeat(agent_vel, N))
-    acc_b = np.ones(2 * N) * (AGENT_MAX_ACC + 0.5) * DT
-
-    if np.linalg.norm(goal_vec) <= DIST_TO_STOP_FROM_MAX + AGENT_MAX_VEL * DT:
-        time_after_stop = (np.linalg.norm(goal_vec) / AGENT_MAX_ACC * 2) ** 0.5
-        start = int(-(- time_after_stop // DT))  # ceiling function
-        eq_con_M = np.stack(
-            [M_xa[start:N], M_xa[N + start:]]
-        ).reshape(-1, 2 * N)
-        _M_xv = np.stack([M_xv[start:N], M_xv[N + start:]]).flatten()
-        eq_con_b = np.repeat(goal_vec, N - start) -\
-            _M_xv * np.repeat(agent_vel, N - start)
-        acc = solve_qp(
-            opt_M, opt_V, A=eq_con_M, b=eq_con_b, lb=-acc_b, ub=acc_b, solver="clarabel"
-        )
-    else:
-        acc = solve_qp(opt_M, opt_V, lb=-acc_b, ub=acc_b, solver="clarabel")
-    return np.array([acc[:N], acc[N:]]).T
-
-
 def calculate_sep_plane(crowd_pos):
     dist = np.linalg.norm(crowd_pos)
     return np.concatenate((crowd_pos / dist, [dist - 2 * PHYSICAL_SPACE]))
