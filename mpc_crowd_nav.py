@@ -266,16 +266,17 @@ def qp_vel_planning(reference_plan, agent_vel):
             given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
     Return:
-        (numpy.ndarray): array with two elements representing the change in velocity (acc-
-            eleration) to be applied in the next step
+        (numpy.ndarray): array with two elements representing the new velocity to be
+            applied in the next step
     """
-    opt_M = MV_xv.T @ MV_xv
+    opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
 
     const_M = []
     const_b = []
     # velocity/control constraint using the inner polygon of a circle with radius
     # AGENT_MAX_VEL
+    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
     for i, line in enumerate(POLYGON_VEL_LINES):
         sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
         M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
@@ -294,13 +295,13 @@ def qp_vel_planning(reference_plan, agent_vel):
         const_M.append(sgn * M_a @ MV_a_)
         const_b.append(sgn * b_a)
 
-    acc = solve_qp(
+    vel = solve_qp(
         opt_M, opt_V,
-        # lb=-acc_b, ub=acc_b,
+        # lb=-vel_b, ub=vel_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
         solver="clarabel"
     )
-    return np.array([np.append(acc[:N - 1], 0), np.append(acc[N - 1:], 0)]).T
+    return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
 
 def qp_planning_vel(reference_plan, reference_vels, agent_vel):
@@ -354,6 +355,59 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
         solver="clarabel"
     )
     return np.array([acc[:N], acc[N:]]).T
+
+
+def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel):
+    """
+    Velocity control.
+    Optimize navigation by using a reference plan for the upcoming horizon. The plan
+    includes position and velocity.
+
+    Args:
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
+        reference_vels (numpy.ndarray): vector of reference velocities with same size as
+            the given horizon
+        agent_vel (numpy.ndarray): vector representing the current agent velocity
+    Return:
+        (numpy.ndarray): array with two elements representing the new velocity to be
+            applied in the next step
+    """
+    opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+    opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv -\
+        0.25 * reference_vels.T
+
+    const_M = []
+    const_b = []
+    # velocity/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_VEL
+    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
+        b_a = np.ones(N - 1) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # acceleration/control constraint using the inner polygon of a circle with radius
+    # acceleration is experessed w.r.t. velocity
+    # AGENT_MAX_ACC
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
+        agent_vel_ = np.zeros(2 * (N - 1))
+        agent_vel_[0], agent_vel_[N - 1] = agent_vel
+        MV_a_ = np.vstack([MV_a[:N - 1], MV_a[N:2 * N - 1]])
+        b_a = np.ones(N - 1) * line[1] + M_a @ agent_vel_ / DT
+        const_M.append(sgn * M_a @ MV_a_)
+        const_b.append(sgn * b_a)
+
+    vel = solve_qp(
+        opt_M, opt_V,
+        # lb=-vel_b, ub=vel_b,
+        G=np.vstack(const_M), h=np.hstack(const_b),
+        solver="clarabel"
+    )
+    return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
 
 def calculate_sep_plane(crowd_pos):
@@ -766,7 +820,13 @@ for t in [0.5 * i for i in range(1)]:
             if "-lpv" in sys.argv:
                 planned_vels[:N] -= agent_vel[0]
                 planned_vels[N:] -= agent_vel[1]
-                plan = qp_planning_vel(planned_steps, planned_vels, agent_vel)
+                if "-v" in sys.argv:
+                    planned_vels = np.append(
+                        planned_vels[:N - 1], planned_vels[N:2 * N - 1]
+                    )
+                    plan = qp_vel_planning_vel(planned_steps, planned_vels, agent_vel)
+                else:
+                    plan = qp_planning_vel(planned_steps, planned_vels, agent_vel)
             elif "-c" in sys.argv:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_poss * 0)
