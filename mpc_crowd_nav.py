@@ -942,13 +942,22 @@ for t in [0.5 * i for i in range(1)]:
             elif "-mc" in sys.argv:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_vels)
-                plan = qp_planning_col_avoid(
-                    planned_steps,
-                    agent_vel,
-                    horizon_crowd_poss,
-                    plan[1:],
-                    env.current_pos
-                )
+                if "-v" in sys.argv:
+                    plan = qp_vel_planning_col_avoid(
+                        planned_steps,
+                        agent_vel,
+                        horizon_crowd_poss,
+                        plan[1:],
+                        env.current_pos
+                    )
+                else:
+                    plan = qp_planning_col_avoid(
+                        planned_steps,
+                        agent_vel,
+                        horizon_crowd_poss,
+                        plan[1:],
+                        env.current_pos
+                    )
             elif "-csc" in sys.argv:
                 # env.set_separating_planes()
                 planned_steps, planned_vels = linear_planner(goal_vec, M)
