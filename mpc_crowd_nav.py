@@ -839,12 +839,13 @@ def sep_planes_from_plan(plan, num_crowd):
 
 separating_planes = None
 intersect = lambda ls_a, ls_b: bool(set(ls_a).intersection(ls_b))
+velocity_str = "Vel" if "-v" in sys.argv else ""
 if intersect(["-c", "-csc"], sys.argv):
-    env = gym.make("fancy/CrowdNavigationStatic-v0")
+    env = gym.make("fancy/CrowdNavigationStatic%s-v0" % velocity_str, width=40)
 elif intersect(["-mc", "-csmc"], sys.argv):
-    env = gym.make("fancy/CrowdNavigation-v0")
+    env = gym.make("fancy/CrowdNavigation%s-v0" % velocity_str)
 else:
-    env = gym.make("fancy/Navigation-v0", width=40, height=20)
+    env = gym.make("fancy/Navigation%s-v0" % velocity_str)
 returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
 ep_counter = 0
