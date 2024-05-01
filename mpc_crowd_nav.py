@@ -527,6 +527,7 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
     opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
+
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
@@ -600,6 +601,97 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
         IN_VIOLATION = False
 
     return np.array([acc[:N], acc[N:]]).T
+
+
+def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
+    """
+    Velocity control.
+    Optimize navigation by using a reference plan for the upcoming horizon and use
+    collision avoidance constraints on crowd where each member is assumed to be a circle.
+
+    Args:
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
+        agent_vel (numpy.ndarray): vector representing the current agent velocity
+        crowd_poss (numpy.ndarray): 2D position of each member of the crowd
+        old_plan (numpy.ndarrray): plan from last iteration
+    Return:
+        (numpy.ndarray): array with two elements representing the new velocity to be
+            applied in the next step
+    """
+    opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+    opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
+
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    for member in range(len(crowd_poss[1])):
+        poss = crowd_poss[:, member, :]
+        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
+        M_ca = np.hstack([np.eye(N) * vec[:, 0], np.eye(N) * vec[:, 1]])
+        v_cb = M_ca @ (-poss.flatten("F") + 0.5 * DT * np.repeat(agent_vel, N)) -\
+            np.array([4 * PHYSICAL_SPACE] * N)
+        M_cac = -M_ca @ MV_xv
+        const_M.append(M_cac)
+        const_b.append(v_cb)
+
+    # velocity/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_VEL
+    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
+        b_a = np.ones(N - 1) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # acceleration/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
+        agent_vel_ = np.zeros(2 * (N - 1))
+        agent_vel_[0], agent_vel_[N - 1] = agent_vel
+        MV_a_ = np.vstack([MV_a[:N - 1], MV_a[N:2 * N - 1]])
+        b_a = np.ones(N - 1) * line[1] + M_a @ agent_vel_ / DT
+        const_M.append(sgn * M_a @ MV_a_)
+        const_b.append(sgn * b_a)
+
+    vel = solve_qp(
+        opt_M, opt_V,
+        # lb=-acc_b, ub=acc_b,
+        G=np.vstack(const_M), h=np.hstack(const_b),
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
+    )
+
+    global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
+    if vel is None:
+        print("Executing last computed trajectory for braking!")
+        global IN_VIOLATION, COUNTER_VIOLATIONS
+        if not IN_VIOLATION:
+            COUNTER_VIOLATIONS += 1
+            IN_VIOLATION = True
+        dist_to_crowd = np.linalg.norm(crowd_poss[0], axis=-1)
+        print("Margin from sep plane: ", min(dist_to_crowd - 4 * PHYSICAL_SPACE))
+        print("Current agent pos: ", agent_pos,
+              " Diff in position: ", LAST_PREDICTED_STATES[0] - agent_pos)
+        print("Velocity: ", agent_vel,
+              " Diff in velocity: ", LAST_PREDICTED_VELOCITY[0] - agent_vel)
+        # input()
+        vel = old_plan.flatten("F")
+    else:
+        position = np.repeat(agent_pos, N) + 0.5 * DT * np.repeat(agent_vel, N) +\
+            MV_xv @ vel
+        LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
+        LAST_PREDICTED_VELOCITY = old_plan
+        IN_VIOLATION = False
+
+    return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
+
 
 
 def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
@@ -830,13 +922,22 @@ for t in [0.5 * i for i in range(1)]:
             elif "-c" in sys.argv:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_poss * 0)
-                plan = qp_planning_col_avoid(
-                    planned_steps,
-                    agent_vel,
-                    horizon_crowd_poss,
-                    plan[1:],
-                    env.current_pos
-                )
+                if "-v" in sys.argv:
+                    plan = qp_vel_planning_col_avoid(
+                        planned_steps,
+                        agent_vel,
+                        horizon_crowd_poss,
+                        plan[1:],
+                        env.current_pos
+                    )
+                else:
+                    plan = qp_planning_col_avoid(
+                        planned_steps,
+                        agent_vel,
+                        horizon_crowd_poss,
+                        plan[1:],
+                        env.current_pos
+                    )
             elif "-mc" in sys.argv:
                 env.set_separating_planes()
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_vels)
