@@ -60,6 +60,7 @@ M_xa = [[ M_xa |  0   ]
 """
 M_xv = np.hstack([np.arange(1, N + 1)] * 2) * DT
 M_bv = np.hstack([np.hstack([np.arange(i, N + i) for i in range(1, M + 1)])] * 2) * DT
+
 M_xa = scipy.linalg.toeplitz(
     np.array([(2 * i - 1) / 2 * DT ** 2 for i in range(1, N + 1)]),
     np.zeros(N)
@@ -69,12 +70,13 @@ for i in range(M):
     M_ba[i * N:i * N + N, i * N:i * N + N] = M_xa
     for j in range(i):
         M_ba[i * N:(i + 1) * N, j * N] = np.repeat(DT ** 2 * (2 * (i + 1 - j) - 1) / 2, N)
-M_ba = np.stack(
-    [np.hstack([M_ba, M_ba * 0]), np.hstack([M_ba * 0, M_ba])]
-).reshape(2 * M * N, 2 * M * N)
 M_xa = np.stack(
     [np.hstack([M_xa, M_xa * 0]), np.hstack([M_xa * 0, M_xa])]
 ).reshape(2 * N, 2 * N)
+M_ba = np.stack(
+    [np.hstack([M_ba, M_ba * 0]), np.hstack([M_ba * 0, M_ba])]
+).reshape(2 * M * N, 2 * M * N)
+
 M_va = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
 M_bva = np.zeros((M * N, M * N))
 for i in range(M):
@@ -84,6 +86,7 @@ for i in range(M):
 M_bva = np.stack(
     [np.hstack([M_bva, M_bva * 0]), np.hstack([M_bva * 0, M_bva])]
 ).reshape(2 * M * N, 2 * M * N)
+
 M_va = np.stack(
     [np.hstack([M_va, M_va * 0]), np.hstack([M_va * 0, M_va])]
 ).reshape(2 * N, 2 * N)
@@ -781,11 +784,11 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         acc[0:N - 1] = old_plan[:, 0]
         acc[N:2 * N - 1] = old_plan[:, 1]
     else:
-    #     position = np.repeat(agent_pos, N) + M_xv * np.repeat(agent_vel, N) + M_xa @ acc
-    #     velocity = np.repeat(agent_vel, N) + M_va @ acc
-    #     LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
-    #     LAST_PREDICTED_VELOCITY = np.array([velocity[:N], velocity[N:]]).T
-    #     IN_VIOLATION = False
+        # position = np.repeat(agent_pos, N) + M_xv * np.repeat(agent_vel, N) + M_xa @ acc
+        # velocity = np.repeat(agent_vel, N) + M_va @ acc
+        # LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
+        # LAST_PREDICTED_VELOCITY = np.array([velocity[:N], velocity[N:]]).T
+        # IN_VIOLATION = False
         acc = np.hstack([acc[:N], acc[M * N:M * N + N]])
 
     return np.array([acc[:N], acc[N:]]).T
