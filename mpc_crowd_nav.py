@@ -923,27 +923,9 @@ for t in [0.5 * i for i in range(1)]:
                     plan = qp_vel_planning_vel(planned_steps, planned_vels, agent_vel)
                 else:
                     plan = qp_planning_vel(planned_steps, planned_vels, agent_vel)
-            elif "-c" in sys.argv:
+            elif "-c" in sys.argv or "-mc" in sys.argv:
                 env.set_separating_planes()
-                horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_poss * 0)
-                if "-v" in sys.argv:
-                    plan = qp_vel_planning_col_avoid(
-                        planned_steps,
-                        agent_vel,
-                        horizon_crowd_poss,
-                        plan[1:],
-                        env.current_pos
-                    )
-                else:
-                    plan = qp_planning_col_avoid(
-                        planned_steps,
-                        agent_vel,
-                        horizon_crowd_poss,
-                        plan[1:],
-                        env.current_pos
-                    )
-            elif "-mc" in sys.argv:
-                env.set_separating_planes()
+                crowd_vels = crowd_vels if "-mc" in sys.argv else crowd_poss * 0
                 horizon_crowd_poss = calculate_crowd_positions(crowd_poss, crowd_vels)
                 if "-v" in sys.argv:
                     plan = qp_vel_planning_col_avoid(
@@ -961,31 +943,14 @@ for t in [0.5 * i for i in range(1)]:
                         plan[1:],
                         env.current_pos
                     )
-            elif "-csc" in sys.argv:
+            elif "-csc" in sys.argv or "-csmc" in sys.argv:
                 # env.set_separating_planes()
                 planned_steps, planned_vels = linear_planner(goal_vec, M)
                 steps = np.zeros((M, 2))
                 steps[:, 0] = planned_steps[:M]
                 steps[:, 1] = planned_steps[M:]
                 env.set_trajectory(steps - steps[0], planned_vels)
-                horizon_crowd_poss = calculate_crowd_positions(
-                    crowd_poss, crowd_poss * 0, M + N
-                )
-                horizon_crowd_poss = cascade_crowd_positions(horizon_crowd_poss)
-                plan = qp_planning_casc_safety(
-                    planned_steps,
-                    agent_vel,
-                    horizon_crowd_poss,
-                    plan[1:],
-                    env.current_pos
-                )
-            elif "-csmc" in sys.argv:
-                # env.set_separating_planes()
-                planned_steps, planned_vels = linear_planner(goal_vec, M)
-                steps = np.zeros((M, 2))
-                steps[:, 0] = planned_steps[:M]
-                steps[:, 1] = planned_steps[M:]
-                env.set_trajectory(steps - steps[0], planned_vels)
+                crowd_vels = crowd_vels if "-csmc" in sys.argv else crowd_poss * 0
                 horizon_crowd_poss = calculate_crowd_positions(
                     crowd_poss, crowd_vels, M + N
                 )
