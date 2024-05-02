@@ -12,6 +12,14 @@ AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
 DT = 0.1
 MAX_STEPS = 4 / DT  # The episode is 4 seconds
+"""
+The horizon needs to be at least the minimal length of a braking trajectory plus one step.
+In order to achieve maximal velocity the braking trajecotry would be MAX_VEL / MAX_ACC.
+Assuming an horizon of one then the robot would not move at all since at the next step it
+has to be able to break.
+In this case MAX_VEL / MAX_ACC = 2 and DT is 0.1 which means that the horizon has to be
+at leas 2 / 0.1 + 1 = 21 in order to achieve maximal velocity.
+"""
 N = 21
 M = 20
 TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
