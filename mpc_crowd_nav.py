@@ -95,17 +95,33 @@ alpha, beta, epsilon = 0.1, 100, 1e-4
 MV_xv = scipy.linalg.toeplitz(np.ones(N), np.zeros(N)) * DT
 np.fill_diagonal(MV_xv, 1 / 2 * DT)
 MV_xv = MV_xv[:, :-1]
+MV_bv = np.zeros((M * N, M * (N - 1)))
+for i in range(M):
+    MV_bv[i * N:i * N + N, i * (N - 1):i * (N - 1) + N - 1] = MV_xv
+    for j in range(i):
+        MV_bv[i * N:(i + 1) * N, j * N] = np.ones(N)
 MV_xv = np.stack(
     [np.hstack([MV_xv, MV_xv * 0]), np.hstack([MV_xv * 0, MV_xv])]
 ).reshape(2 * N, 2 * (N - 1))
+MV_bv = np.stack(
+    [np.hstack([MV_bv, MV_bv * 0]), np.hstack([MV_bv * 0, MV_bv])]
+).reshape(2 * M * N, 2 * M * (N - 1))
 
 acc_from_vel = np.zeros(N)
 acc_from_vel[:2] = np.array([1, -1])
 MV_a = scipy.linalg.toeplitz(acc_from_vel, np.zeros(N)) / DT
 MV_a = MV_a[:, :-1]
+MV_b_a = np.zeros((M * N, M * (N - 1)))
+for i in range(M):
+    MV_b_a[i * N:i * N + N, i * (N - 1):i * (N - 1) + N - 1] = MV_a
+    if i > 0:
+        MV_b_a[i * N, (i - 1) * (N - 1)] = -1
 MV_a = np.stack(
     [np.hstack([MV_a, MV_a * 0]), np.hstack([MV_a * 0, MV_a])]
 ).reshape(2 * N, 2 * (N - 1))
+MV_b_a = np.stack(
+    [np.hstack([MV_b_a, MV_b_a * 0]), np.hstack([MV_b_a * 0, MV_b_a])]
+).reshape(2 * M * N, 2 * M * (N - 1))
 
 F_p = np.zeros(N, dtype=int)
 F_p[0] = 1
@@ -118,6 +134,8 @@ M_bv_f = M_bv[np.nonzero(F_p)]
 M_ba_f = M_ba[np.nonzero(F_p)]
 M_bva_f = M_bva[np.nonzero(F_p)]
 M_bva_b = M_bva[np.nonzero(F_b)]
+
+MV_bv_f = MV_bv[np.nonzero(F_p)]
 
 
 def crowd_const_mat(n_crowd):
@@ -693,7 +711,6 @@ def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, a
     return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
 
-
 def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
@@ -789,6 +806,100 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         acc = np.hstack([acc[:N], acc[M * N:M * N + N]])
 
     return np.array([acc[:N], acc[N:]]).T
+
+
+def qp_vel_planning_casc_safety(
+        reference_plan, agent_vel, crowd_poss, old_plan, agent_pos
+):
+    """
+    Velocity control.
+    Optimize navigation by using a reference plan for the upcoming horizon and use
+    collision avoidance constraints on crowd where each member is assumed to be a circle.
+    Safety is computed in a cascading manner where for each timestep in the horizon a
+    braking trajecotry is computed. This alows us to decouple the trajectory for safety
+    and that for planning.
+
+    Args:
+        reference_plan (numpy.ndarray): vector of reference points with same size as the
+            given horizon
+        agent_vel (numpy.ndarray): vector representing the current agent velocity
+        crowd_poss (numpy.ndarray): 2D position of each member of the crowd
+        old_plan (numpy.ndarrray): plan from last iteration
+    Return:
+        (numpy.ndarray): array with two elements representing the change in velocity (acc-
+            eleration) to be applied in the next step
+    """
+    opt_M = MV_bv_f.T @ MV_bv_f + 0.25 * np.eye(2 * M * (N - 1))
+    opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, M)).T @ MV_bv_f
+
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    for member in range(len(crowd_poss[1])):
+        poss = crowd_poss[:, member, :]
+        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
+        M_ca = np.hstack([np.eye(M * N) * vec[:, 0], np.eye(M * N) * vec[:, 1]])
+        v_cb = M_ca @ (-poss.flatten("F") + 0.5 * DT * np.repeat(agent_vel, M * N)) -\
+            np.array([4 * PHYSICAL_SPACE] * M * N)
+        M_cac = -M_ca @ MV_bv
+        const_M.append(M_cac)
+        const_b.append(v_cb)
+
+    # velocity/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_VEL
+    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
+    for i, line in enumerate(POLYGON_VEL_LINES):
+        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(M * (N - 1)) * -line[0], np.eye(M * (N - 1))])
+        b_a = np.ones(M * (N - 1)) * line[1]
+        const_M.append(sgn * M_a)
+        const_b.append(sgn * b_a)
+    # acceleration/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_ACC
+    for i, line in enumerate(POLYGON_ACC_LINES):
+        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
+        M_a = np.hstack([np.eye(M * N) * -line[0], np.eye(M * N)])
+        agent_vel_ = np.zeros(2 * M * N)
+        agent_vel_[0], agent_vel_[M * N] = agent_vel
+        b_a = np.ones(M * N) * line[1] + M_a @ agent_vel_ / DT
+        const_M.append(sgn * M_a @ MV_b_a)
+        const_b.append(sgn * b_a)
+
+    vel = solve_qp(
+        opt_M, opt_V,
+        G=np.vstack(const_M), h=np.hstack(const_b),
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
+    )
+
+    # global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
+    if vel is None:
+        print("Executing last computed trajectory for braking!")
+        global IN_VIOLATION, COUNTER_VIOLATIONS
+        if not IN_VIOLATION:
+            COUNTER_VIOLATIONS += 1
+            IN_VIOLATION = True
+        dist_to_crowd = np.linalg.norm(crowd_poss[0], axis=-1)
+        print("Margin from sep plane: ", min(dist_to_crowd - 4 * PHYSICAL_SPACE))
+        print("Current agent pos: ", agent_pos,
+              " Diff in position: ", LAST_PREDICTED_STATES[0] - agent_pos)
+        print("Velocity: ", agent_vel,
+              " Diff in velocity: ", LAST_PREDICTED_VELOCITY[0] - agent_vel)
+        # input()
+        vel = old_plan.flatten("F")
+    else:
+        # position = np.repeat(agent_pos, N) + 0.5 * DT * np.repeat(agent_vel, N) +\
+        #     MV_xv @ vel
+        # LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
+        # LAST_PREDICTED_VELOCITY = np.array([velocity[:N], velocity[N:]]).T
+        # IN_VIOLATION = False
+        vel = np.hstack([vel[:N - 1], vel[M * (N - 1):M * (N - 1) + (N - 1)]])
+
+    return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
 
 def calculate_crowd_positions(crowd_poss, crowd_vels, horizon=N):
@@ -952,13 +1063,22 @@ for t in [0.5 * i for i in range(1)]:
                     crowd_poss, crowd_vels, M + N
                 )
                 horizon_crowd_poss = cascade_crowd_positions(horizon_crowd_poss)
-                plan = qp_planning_casc_safety(
-                    planned_steps,
-                    agent_vel,
-                    horizon_crowd_poss,
-                    plan[1:],
-                    env.current_pos
-                )
+                if "-v" in sys.argv:
+                    plan = qp_vel_planning_casc_safety(
+                        planned_steps,
+                        agent_vel,
+                        horizon_crowd_poss,
+                        plan[1:],
+                        env.current_pos
+                    )
+                else:
+                    plan = qp_planning_casc_safety(
+                        planned_steps,
+                        agent_vel,
+                        horizon_crowd_poss,
+                        plan[1:],
+                        env.current_pos
+                    )
             else:
                 if "-v" in sys.argv:
                     plan = qp_vel_planning(planned_steps, agent_vel)
