@@ -107,7 +107,7 @@ MV_bv = np.zeros((M * N, M * (N - 1)))
 for i in range(M):
     MV_bv[i * N:i * N + N, i * (N - 1):i * (N - 1) + N - 1] = MV_xv
     for j in range(i):
-        MV_bv[i * N:(i + 1) * N, j * N] = np.ones(N)
+        MV_bv[i * N:(i + 1) * N, j * N] = np.ones(N) * DT
 MV_xv = np.stack(
     [np.hstack([MV_xv, MV_xv * 0]), np.hstack([MV_xv * 0, MV_xv])]
 ).reshape(2 * N, 2 * (N - 1))
@@ -123,13 +123,18 @@ MV_b_a = np.zeros((M * N, M * (N - 1)))
 for i in range(M):
     MV_b_a[i * N:i * N + N, i * (N - 1):i * (N - 1) + N - 1] = MV_a
     if i > 0:
-        MV_b_a[i * N, (i - 1) * (N - 1)] = -1
+        MV_b_a[i * N, (i - 1) * (N - 1)] = -1 / DT
 MV_a = np.stack(
     [np.hstack([MV_a, MV_a * 0]), np.hstack([MV_a * 0, MV_a])]
 ).reshape(2 * N, 2 * (N - 1))
 MV_b_a = np.stack(
     [np.hstack([MV_b_a, MV_b_a * 0]), np.hstack([MV_b_a * 0, MV_b_a])]
 ).reshape(2 * M * N, 2 * M * (N - 1))
+
+F_vp = np.zeros(N - 1, dtype=int)
+F_vp[0] = 1
+F_vp = np.hstack([np.hstack([F_vp] * M)] * 2)
+MV_v = np.diag(F_vp)
 
 F_p = np.zeros(N, dtype=int)
 F_p[0] = 1
@@ -838,7 +843,7 @@ def qp_vel_planning_casc_safety(
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = MV_bv_f.T @ MV_bv_f + 0.25 * np.eye(2 * M * (N - 1))
+    opt_M = MV_bv_f.T @ MV_bv_f + 0.02 * np.eye(2 * M * (N - 1))
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, M)).T @ MV_bv_f
 
     const_M = []  # constraint matrices
