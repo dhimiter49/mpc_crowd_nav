@@ -290,12 +290,11 @@ def qp_vel_planning(reference_plan, agent_vel):
     # AGENT_MAX_ACC
     for i, line in enumerate(POLYGON_ACC_LINES):
         sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
-        agent_vel_ = np.zeros(2 * (N - 1))
-        agent_vel_[0], agent_vel_[N - 1] = agent_vel
-        MV_a_ = np.vstack([MV_a[:N - 1], MV_a[N:2 * N - 1]])
-        b_a = np.ones(N - 1) * line[1] + M_a @ agent_vel_ / DT
-        const_M.append(sgn * M_a @ MV_a_)
+        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        agent_vel_ = np.zeros(2 * N)
+        agent_vel_[0], agent_vel_[N] = agent_vel
+        b_a = np.ones(N) * line[1] + M_a @ agent_vel_ / DT
+        const_M.append(sgn * M_a @ MV_a)
         const_b.append(sgn * b_a)
 
     vel = solve_qp(
@@ -396,12 +395,11 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel):
     # AGENT_MAX_ACC
     for i, line in enumerate(POLYGON_ACC_LINES):
         sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
-        agent_vel_ = np.zeros(2 * (N - 1))
-        agent_vel_[0], agent_vel_[N - 1] = agent_vel
-        MV_a_ = np.vstack([MV_a[:N - 1], MV_a[N:2 * N - 1]])
-        b_a = np.ones(N - 1) * line[1] + M_a @ agent_vel_ / DT
-        const_M.append(sgn * M_a @ MV_a_)
+        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        agent_vel_ = np.zeros(2 * (N))
+        agent_vel_[0], agent_vel_[N] = agent_vel
+        b_a = np.ones(N) * line[1] + M_a @ agent_vel_ / DT
+        const_M.append(sgn * M_a @ MV_a)
         const_b.append(sgn * b_a)
 
     vel = solve_qp(
@@ -650,12 +648,11 @@ def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, a
     # AGENT_MAX_ACC
     for i, line in enumerate(POLYGON_ACC_LINES):
         sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
-        agent_vel_ = np.zeros(2 * (N - 1))
-        agent_vel_[0], agent_vel_[N - 1] = agent_vel
-        MV_a_ = np.vstack([MV_a[:N - 1], MV_a[N:2 * N - 1]])
-        b_a = np.ones(N - 1) * line[1] + M_a @ agent_vel_ / DT
-        const_M.append(sgn * M_a @ MV_a_)
+        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
+        agent_vel_ = np.zeros(2 * N)
+        agent_vel_[0], agent_vel_[N] = agent_vel
+        b_a = np.ones(N) * line[1] + M_a @ agent_vel_ / DT
+        const_M.append(sgn * M_a @ MV_a)
         const_b.append(sgn * b_a)
 
     vel = solve_qp(
