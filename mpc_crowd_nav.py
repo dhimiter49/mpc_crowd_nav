@@ -737,9 +737,10 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 0.25 * M_bva_f.T @ M_bva_f + M_ba_f.T @ M_ba_f
+    opt_M = 0.075 * M_bva_f.T @ M_bva_f + M_ba_f.T @ M_ba_f
     opt_V = (-reference_plan + M_bv_f * np.repeat(agent_vel, M)).T @ M_ba_f +\
-        0.25 * np.repeat(agent_vel, M) @ M_bva_f
+        0.075 * np.repeat(agent_vel, M) @ M_bva_f
+
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
