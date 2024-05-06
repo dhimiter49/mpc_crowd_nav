@@ -1032,9 +1032,12 @@ for t in [0.5 * i for i in range(1)]:
         if intersect(["-lpv", "-lp", "-c", "-mc", "-csmc", "-csc"], sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
             steps = np.zeros((N, 2))
+            steps_vel = np.zeros((N, 2))
             steps[:, 0] = planned_steps[:N]
             steps[:, 1] = planned_steps[N:]
-            env.set_trajectory(steps - steps[0], planned_vels)
+            steps_vel[:, 0] = planned_vels[:N]
+            steps_vel[:, 1] = planned_vels[N:]
+            env.set_trajectory(steps - steps[0], steps_vel)
             if "-lpv" in sys.argv:
                 planned_vels[:N] -= agent_vel[0]
                 planned_vels[N:] -= agent_vel[1]
