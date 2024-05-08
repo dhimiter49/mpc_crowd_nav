@@ -971,8 +971,11 @@ def sep_planes_from_plan(plan, num_crowd):
     return np.array([normal / np.linalg.norm(normal)] * num_crowd)
 
 
+def intersect(ls_a, ls_b):
+    return bool(set(ls_a).intersection(ls_b))
+
+
 separating_planes = None
-intersect = lambda ls_a, ls_b: bool(set(ls_a).intersection(ls_b))
 velocity_str = "Vel" if "-v" in sys.argv else ""
 if intersect(["-c", "-csc"], sys.argv):
     env = gym.make("fancy/CrowdNavigationStatic%s-v0" % velocity_str, width=40)
