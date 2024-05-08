@@ -10,6 +10,7 @@ from qpsolvers import solve_qp
 PHYSICAL_SPACE = 0.4
 AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
+MAX_STOPPING_DIST = 6
 DT = 0.1
 MAX_STEPS = 4 / DT  # The episode is 4 seconds
 """
@@ -750,6 +751,8 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
+        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+            continue
         vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(M * N) * vec[:, 0], np.eye(M * N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + M_bv * np.repeat(agent_vel, M * N)) -\
@@ -794,7 +797,7 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         tol_ktratio=1e-4
     )
 
-    # global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
+    global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
     if acc is None:
         print("Executing last computed trajectory for braking!")
         global IN_VIOLATION, COUNTER_VIOLATIONS
@@ -812,11 +815,12 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         acc[0:N - 1] = old_plan[:, 0]
         acc[N:2 * N - 1] = old_plan[:, 1]
     else:
-        # position = np.repeat(agent_pos, N) + M_xv * np.repeat(agent_vel, N) + M_xa @ acc
-        # velocity = np.repeat(agent_vel, N) + M_va @ acc
-        # LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
-        # LAST_PREDICTED_VELOCITY = np.array([velocity[:N], velocity[N:]]).T
-        # IN_VIOLATION = False
+        position = np.repeat(agent_pos, M) + M_bv_f * np.repeat(agent_vel, M) + \
+            M_ba_f @ acc
+        velocity = np.repeat(agent_vel, M) + M_bva_f @ acc
+        LAST_PREDICTED_STATES = np.array([position[:M], position[M:]]).T
+        LAST_PREDICTED_VELOCITY = np.array([velocity[:M], velocity[M:]]).T
+        IN_VIOLATION = False
         acc = np.hstack([acc[:N], acc[M * N:M * N + N]])
 
     return np.array([acc[:N], acc[N:]]).T
@@ -850,6 +854,8 @@ def qp_vel_planning_casc_safety(
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
+        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+            continue
         vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(M * N) * vec[:, 0], np.eye(M * N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + 0.5 * DT * np.repeat(agent_vel, M * N)) -\
@@ -890,7 +896,7 @@ def qp_vel_planning_casc_safety(
         tol_ktratio=1e-4
     )
 
-    # global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
+    global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
     if vel is None:
         print("Executing last computed trajectory for braking!")
         global IN_VIOLATION, COUNTER_VIOLATIONS
@@ -906,12 +912,15 @@ def qp_vel_planning_casc_safety(
         # input()
         vel = old_plan.flatten("F")
     else:
-        # position = np.repeat(agent_pos, N) + 0.5 * DT * np.repeat(agent_vel, N) +\
-        #     MV_xv @ vel
-        # LAST_PREDICTED_STATES = np.array([position[:N], position[N:]]).T
-        # LAST_PREDICTED_VELOCITY = np.array([velocity[:N], velocity[N:]]).T
-        # IN_VIOLATION = False
+        position = np.repeat(agent_pos, M) + 0.5 * DT * np.repeat(agent_vel, M) +\
+            MV_bv_f @ vel
         vel = np.hstack([vel[:N - 1], vel[M * (N - 1):M * (N - 1) + (N - 1)]])
+        vel_ = np.array(
+            [np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]
+        ).T
+        LAST_PREDICTED_STATES = np.array([position[:M], position[M:]]).T
+        IN_VIOLATION = False
+        LAST_PREDICTED_VELOCITY = vel_
 
     return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
@@ -1072,9 +1081,12 @@ for t in [0.5 * i for i in range(1)]:
                 # env.set_separating_planes()
                 planned_steps, planned_vels = linear_planner(goal_vec, M)
                 steps = np.zeros((M, 2))
+                steps_vel = np.zeros((M, 2))
                 steps[:, 0] = planned_steps[:M]
                 steps[:, 1] = planned_steps[M:]
-                env.set_trajectory(steps - steps[0], planned_vels)
+                steps_vel[:, 0] = planned_vels[:M]
+                steps_vel[:, 1] = planned_vels[M:]
+                env.set_trajectory(steps - steps[0], steps_vel)
                 crowd_vels = crowd_vels if "-csmc" in sys.argv else crowd_poss * 0
                 horizon_crowd_poss = calculate_crowd_positions(
                     crowd_poss, crowd_vels, M + N
