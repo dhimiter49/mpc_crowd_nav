@@ -565,6 +565,8 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
+        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+            continue
         vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(N) * vec[:, 0], np.eye(N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + M_xv * np.repeat(agent_vel, N)) -\
@@ -659,6 +661,8 @@ def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, a
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
+        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+            continue
         vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(N) * vec[:, 0], np.eye(N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + 0.5 * DT * np.repeat(agent_vel, N)) -\
