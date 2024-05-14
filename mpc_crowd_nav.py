@@ -47,7 +47,7 @@ def gen_polygon(radius, sides=8):
         m = (polygon[i][1] - polygon[i + 1][1]) / (polygon[i][0] - polygon[i + 1][0])
         b = polygon[i][1] - m * polygon[i][0]
         polygon_lines.append([m, b])
-    return polygon_lines
+    return np.array(polygon_lines)
 
 
 POLYGON_ACC_LINES = gen_polygon(AGENT_MAX_ACC, sides=8)
@@ -151,6 +151,81 @@ M_bva_b = M_bva[np.nonzero(F_b)]
 
 MV_bv_f = MV_bv[np.nonzero(F_p)]
 
+horizon = N
+m_v = M_va
+if "-csc" in sys.argv or "-csmc" in sys.argv:
+    if "-v" in sys.argv:
+        horizon = (N - 1) * M
+        comp = M
+        m_b_a = MV_b_a
+    else:
+        horizon = N * M
+        m_v = M_bva
+elif "-v" in sys.argv:
+    horizon = N - 1
+    comp = 1
+    m_b_a = MV_a
+
+if "-v" not in sys.argv:
+    # velocity constraint using the inner polygon of a circle with radius AGENT_MAX_VEL
+    M_v_ = np.vstack([np.eye(horizon) * -line[0] for line in POLYGON_VEL_LINES])
+    M_v_ = np.hstack([M_v_, np.vstack([np.eye(horizon)] * len(POLYGON_VEL_LINES))])
+    sgn_vel = np.ones(len(POLYGON_VEL_LINES))
+    sgn_vel[len(POLYGON_VEL_LINES) // 2:] = -1
+    sgn_vel = np.repeat(sgn_vel, horizon)
+    b_v_ = np.repeat(POLYGON_VEL_LINES[:, 1], horizon)
+
+    VEL_MAT_CONST = ((M_v_ @ m_v).T * sgn_vel).T
+
+
+    def vel_vec_const(agent_vel):
+        return sgn_vel * (b_v_ - M_v_ @ np.repeat(agent_vel, horizon))
+
+
+    # acceleration/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_ACC
+    M_a_ = np.vstack([np.eye(horizon) * -line[0] for line in POLYGON_ACC_LINES])
+    M_a_ = np.hstack([M_a_, np.vstack([np.eye(horizon)] * len(POLYGON_ACC_LINES))])
+    sgn_acc = np.ones(len(POLYGON_ACC_LINES))
+    sgn_acc[len(POLYGON_ACC_LINES) // 2:] = -1
+    sgn_acc = np.repeat(sgn_acc, horizon)
+    b_a_ = np.repeat(POLYGON_ACC_LINES[:, 1], horizon)
+
+    ACC_MAT_CONST = (M_a_.T * sgn_acc).T
+    ACC_VEC_CONST = sgn_acc * b_a_
+else:
+    # velocity/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_VEL
+    MV_v_ = np.vstack([np.eye(horizon) * -line[0] for line in POLYGON_VEL_LINES])
+    MV_v_ = np.hstack([MV_v_, np.vstack([np.eye(horizon)] * len(POLYGON_VEL_LINES))])
+    sgn_vel = np.ones(len(POLYGON_VEL_LINES))
+    sgn_vel[len(POLYGON_VEL_LINES) // 2:] = -1
+    sgn_vel = np.repeat(sgn_vel, horizon)
+    b_a_ = np.repeat(POLYGON_VEL_LINES[:, 1], horizon)
+
+    VEL_VEL_MAT_CONST = (MV_v_.T * sgn_vel).T
+    VEL_VEL_VEC_CONST = sgn_vel * b_a_
+
+
+    # acceleration/control constraint using the inner polygon of a circle with radius
+    # AGENT_MAX_ACC
+    MV_a_ = np.vstack([np.eye(horizon + comp) * -line[0] for line in POLYGON_ACC_LINES])
+    MV_a_ = np.hstack([
+        MV_a_, np.vstack([np.eye(horizon + comp)] * len(POLYGON_ACC_LINES))
+    ])
+    vel_sgn_acc = np.ones(len(POLYGON_ACC_LINES))
+    vel_sgn_acc[len(POLYGON_ACC_LINES) // 2:] = -1
+    vel_sgn_acc = np.repeat(vel_sgn_acc, horizon + comp)
+    bv_a_ = np.repeat(POLYGON_ACC_LINES[:, 1], horizon + comp)
+
+    VEL_ACC_MAT_CONST = ((MV_a_ @ m_b_a).T * vel_sgn_acc).T
+
+
+    def vel_acc_vec_const(agent_vel):
+        agent_vel_ = np.zeros(2 * (horizon + comp))
+        agent_vel_[0], agent_vel_[horizon + comp] = agent_vel
+        return vel_sgn_acc * (bv_a_ + MV_a_ @ agent_vel_ / DT)
+
 
 def crowd_const_mat(n_crowd):
     return np.zeros((n_crowd, 4 * n_crowd))
@@ -214,22 +289,10 @@ def qp(goal_vec, agent_vel):
 
     const_M = []
     const_b = []
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_a = np.ones(N) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # velocity constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
-        const_M.append(sgn * M_v @ M_va)
-        const_b.append(sgn * b_v)
+    const_M.append(VEL_MAT_CONST)
+    const_b.append(vel_vec_const(agent_vel))
+    const_M.append(ACC_MAT_CONST)
+    const_b.append(ACC_VEC_CONST)
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -264,22 +327,10 @@ def qp_planning(reference_plan, agent_vel):
 
     const_M = []
     const_b = []
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_a = np.ones(N) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # velocity constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
-        const_M.append(sgn * M_v @ M_va)
-        const_b.append(sgn * b_v)
+    const_M.append(ACC_MAT_CONST)
+    const_b.append(ACC_VEC_CONST)
+    const_M.append(VEL_MAT_CONST)
+    const_b.append(vel_vec_const(agent_vel))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -309,25 +360,10 @@ def qp_vel_planning(reference_plan, agent_vel):
 
     const_M = []
     const_b = []
-    # velocity/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
-        b_a = np.ones(N - 1) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        agent_vel_ = np.zeros(2 * N)
-        agent_vel_[0], agent_vel_[N] = agent_vel
-        b_a = np.ones(N) * line[1] + M_a @ agent_vel_ / DT
-        const_M.append(sgn * M_a @ MV_a)
-        const_b.append(sgn * b_a)
+    const_M.append(VEL_VEL_MAT_CONST)
+    const_b.append(VEL_VEL_VEC_CONST)
+    const_M.append(VEL_ACC_MAT_CONST)
+    const_b.append(vel_acc_vec_const(agent_vel))
 
     vel = solve_qp(
         opt_M, opt_V,
@@ -364,22 +400,10 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
 
     const_M = []
     const_b = []
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_a = np.ones(N) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # velocity constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
-        const_M.append(sgn * M_v @ M_va)
-        const_b.append(sgn * b_v)
+    const_M.append(ACC_MAT_CONST)
+    const_b.append(ACC_VEC_CONST)
+    const_M.append(VEL_MAT_CONST)
+    const_b.append(vel_vec_const(agent_vel))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -413,26 +437,10 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel):
 
     const_M = []
     const_b = []
-    # velocity/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
-        b_a = np.ones(N - 1) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # acceleration is experessed w.r.t. velocity
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        agent_vel_ = np.zeros(2 * (N))
-        agent_vel_[0], agent_vel_[N] = agent_vel
-        b_a = np.ones(N) * line[1] + M_a @ agent_vel_ / DT
-        const_M.append(sgn * M_a @ MV_a)
-        const_b.append(sgn * b_a)
+    const_M.append(VEL_VEL_MAT_CONST)
+    const_b.append(VEL_VEL_VEC_CONST)
+    const_M.append(VEL_ACC_MAT_CONST)
+    const_b.append(vel_acc_vec_const(agent_vel))
 
     vel = solve_qp(
         opt_M, opt_V,
@@ -580,22 +588,10 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_a = np.ones(N) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # velocity constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_v = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        b_v = np.ones(N) * line[1] - M_v @ np.repeat(agent_vel, N)
-        const_M.append(sgn * M_v @ M_va)
-        const_b.append(sgn * b_v)
+    const_M.append(ACC_MAT_CONST)
+    const_b.append(ACC_VEC_CONST)
+    const_M.append(VEL_MAT_CONST)
+    const_b.append(vel_vec_const(agent_vel))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -671,25 +667,10 @@ def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, a
         const_M.append(M_cac)
         const_b.append(v_cb)
 
-    # velocity/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N - 1) * -line[0], np.eye(N - 1)])
-        b_a = np.ones(N - 1) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(N) * -line[0], np.eye(N)])
-        agent_vel_ = np.zeros(2 * N)
-        agent_vel_[0], agent_vel_[N] = agent_vel
-        b_a = np.ones(N) * line[1] + M_a @ agent_vel_ / DT
-        const_M.append(sgn * M_a @ MV_a)
-        const_b.append(sgn * b_a)
+    const_M.append(VEL_VEL_MAT_CONST)
+    const_b.append(VEL_VEL_VEC_CONST)
+    const_M.append(VEL_ACC_MAT_CONST)
+    const_b.append(vel_acc_vec_const(agent_vel))
 
     vel = solve_qp(
         opt_M, opt_V,
@@ -770,22 +751,10 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
     term_const_M = M_bva_b
     term_const_b = -np.repeat(agent_vel, M)
 
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(M * N) * -line[0], np.eye(M * N)])
-        b_a = np.ones(M * N) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # velocity constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_v = np.hstack([np.eye(M * N) * -line[0], np.eye(M * N)])
-        b_v = np.ones(M * N) * line[1] - M_v @ np.repeat(agent_vel, M * N)
-        const_M.append(sgn * M_v @ M_bva)
-        const_b.append(sgn * b_v)
+    const_M.append(ACC_MAT_CONST)
+    const_b.append(ACC_VEC_CONST)
+    const_M.append(VEL_MAT_CONST)
+    const_b.append(vel_vec_const(agent_vel))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -868,25 +837,10 @@ def qp_vel_planning_casc_safety(
         const_M.append(M_cac)
         const_b.append(v_cb)
 
-    # velocity/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_VEL
-    # vel_b = np.ones(2 * N) * AGENT_MAX_VEL
-    for i, line in enumerate(POLYGON_VEL_LINES):
-        sgn = 1 if i < len(POLYGON_VEL_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(M * (N - 1)) * -line[0], np.eye(M * (N - 1))])
-        b_a = np.ones(M * (N - 1)) * line[1]
-        const_M.append(sgn * M_a)
-        const_b.append(sgn * b_a)
-    # acceleration/control constraint using the inner polygon of a circle with radius
-    # AGENT_MAX_ACC
-    for i, line in enumerate(POLYGON_ACC_LINES):
-        sgn = 1 if i < len(POLYGON_ACC_LINES) / 2 else -1
-        M_a = np.hstack([np.eye(M * N) * -line[0], np.eye(M * N)])
-        agent_vel_ = np.zeros(2 * M * N)
-        agent_vel_[0], agent_vel_[M * N] = agent_vel
-        b_a = np.ones(M * N) * line[1] + M_a @ agent_vel_ / DT
-        const_M.append(sgn * M_a @ MV_b_a)
-        const_b.append(sgn * b_a)
+    const_M.append(VEL_VEL_MAT_CONST)
+    const_b.append(VEL_VEL_VEC_CONST)
+    const_M.append(VEL_ACC_MAT_CONST)
+    const_b.append(vel_acc_vec_const(agent_vel))
 
     vel = solve_qp(
         opt_M, opt_V,
