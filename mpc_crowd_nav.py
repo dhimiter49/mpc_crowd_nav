@@ -231,6 +231,53 @@ else:
         return vel_sgn_acc * (bv_a_ + MV_a_ @ agent_vel_ / DT)
 
 
+horizon_ = M * N if "-csc" in sys.argv or "-csmc" in sys.argv else N
+m_xv = M_bv if "-csc" in sys.argv or "-csmc" in sys.argv else M_xv
+m_xa = M_ba if "-csc" in sys.argv or "-csmc" in sys.argv else M_xa
+
+
+def wall_constraints(const_M, const_b, wall_dist, agent_vel):
+    if wall_dist[0] < MAX_STOPPING_DIST * 1.5 or wall_dist[2] < MAX_STOPPING_DIST * 1.5:
+        poss = np.repeat(
+            np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
+                       wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
+        )
+        v_cb = poss - m_xv * np.repeat(agent_vel, horizon_)
+        const_M.append(m_xa)
+        const_b.append(v_cb)
+    if wall_dist[1] < MAX_STOPPING_DIST * 1.5 or wall_dist[3] < MAX_STOPPING_DIST * 1.5:
+        poss_ = np.repeat(
+            np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
+                       wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
+        )
+        v_cb = poss_ + m_xv * np.repeat(agent_vel, horizon_)
+        const_M.append(-m_xa)
+        const_b.append(v_cb)
+
+
+mv_xv = MV_bv if "-csc" in sys.argv or "-csmc" in sys.argv else MV_xv
+
+
+def vel_wall_constraints(const_M, const_b, wall_dist, agent_vel):
+    if wall_dist[0] < MAX_STOPPING_DIST * 1.5 or wall_dist[2] < MAX_STOPPING_DIST * 1.5:
+        poss = np.repeat(
+            np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
+                       wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
+        )
+        v_cb = poss - 0.5 * np.repeat(agent_vel, horizon_)
+        const_M.append(mv_xv)
+        const_b.append(v_cb)
+
+    if wall_dist[1] < MAX_STOPPING_DIST * 1.5 or wall_dist[3] < MAX_STOPPING_DIST * 1.5:
+        poss_ = np.repeat(
+            np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
+                       wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
+        )
+        v_cb = poss_ + 0.5 * np.repeat(agent_vel, horizon_)
+        const_M.append(-mv_xv)
+        const_b.append(v_cb)
+
+
 def crowd_const_mat(n_crowd):
     return np.zeros((n_crowd, 4 * n_crowd))
 
@@ -270,7 +317,7 @@ def linear_planner(goal_vec, horizon=N):
     return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
-def qp(goal_vec, agent_vel):
+def qp(goal_vec, agent_vel, old_plan, wall_dist):
     """
     Naive solution to the navigation problem where the optimization is with regards to
     minimizing the distance between all steps of the horizon and the goal.
@@ -291,8 +338,9 @@ def qp(goal_vec, agent_vel):
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
-    const_M = []
-    const_b = []
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    wall_constraints(const_M, const_b, wall_dist, agent_vel)
     const_M.append(VEL_MAT_CONST)
     const_b.append(vel_vec_const(agent_vel))
     const_M.append(ACC_MAT_CONST)
@@ -303,12 +351,24 @@ def qp(goal_vec, agent_vel):
         # lb=-acc_b, ub=acc_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
-        solver="clarabel"
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
     )
+
+    if acc is None:
+        print("Executing last computed trajectory for braking!")
+        acc = np.zeros(2 * N)
+        acc[0:N - 1] = old_plan[:, 0]
+        acc[N:2 * N - 1] = old_plan[:, 1]
     return np.array([acc[:N], acc[N:]]).T
 
 
-def qp_planning(reference_plan, agent_vel):
+def qp_planning(reference_plan, agent_vel, old_plan, wall_dist):
     """
     Optimize navigation by using a reference plan for the upcoming horizon.
 
@@ -316,6 +376,7 @@ def qp_planning(reference_plan, agent_vel):
         reference_plan (numpy.ndarray): vector of reference points with same size as the
             given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
+        wall_dist (numpy.ndarray): distance to the four walls
     Return:
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
@@ -329,8 +390,9 @@ def qp_planning(reference_plan, agent_vel):
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
-    const_M = []
-    const_b = []
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    wall_constraints(const_M, const_b, wall_dist, agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
     const_M.append(VEL_MAT_CONST)
@@ -341,12 +403,24 @@ def qp_planning(reference_plan, agent_vel):
         # lb=-acc_b, ub=acc_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
-        solver="clarabel"
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
     )
+
+    if acc is None:
+        print("Executing last computed trajectory for braking!")
+        acc = np.zeros(2 * N)
+        acc[0:N - 1] = old_plan[:, 0]
+        acc[N:2 * N - 1] = old_plan[:, 1]
     return np.array([acc[:N], acc[N:]]).T
 
 
-def qp_vel_planning(reference_plan, agent_vel):
+def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
     """
     Velocity control.
     Optimize navigation by using a reference plan for the upcoming horizon.
@@ -362,8 +436,9 @@ def qp_vel_planning(reference_plan, agent_vel):
     opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
 
-    const_M = []
-    const_b = []
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
     const_M.append(VEL_VEL_MAT_CONST)
     const_b.append(VEL_VEL_VEC_CONST)
     const_M.append(VEL_ACC_MAT_CONST)
@@ -373,12 +448,22 @@ def qp_vel_planning(reference_plan, agent_vel):
         opt_M, opt_V,
         # lb=-vel_b, ub=vel_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
-        solver="clarabel"
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
     )
+
+    if vel is None:
+        print("Executing last computed trajectory for braking!")
+        vel = old_plan.flatten("F")
     return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
 
-def qp_planning_vel(reference_plan, reference_vels, agent_vel):
+def qp_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wall_dist):
     """
     Optimize navigation by using a reference plan for the trajectory and the velocity in
     the upcoming horizon.
@@ -389,6 +474,7 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
         reference_vels (numpy.ndarray): vector of reference velocities with same size as
             the given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
+        wall_dist (numpy.ndarray): distance to the four walls
     Return:
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
@@ -402,8 +488,9 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
-    const_M = []
-    const_b = []
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    wall_constraints(const_M, const_b, wall_dist, agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
     const_M.append(VEL_MAT_CONST)
@@ -414,12 +501,24 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel):
         # lb=-acc_b, ub=acc_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
-        solver="clarabel"
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
     )
+
+    if acc is None:
+        print("Executing last computed trajectory for braking!")
+        acc = np.zeros(2 * N)
+        acc[0:N - 1] = old_plan[:, 0]
+        acc[N:2 * N - 1] = old_plan[:, 1]
     return np.array([acc[:N], acc[N:]]).T
 
 
-def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel):
+def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wall_dist):
     """
     Velocity control.
     Optimize navigation by using a reference plan for the upcoming horizon. The plan
@@ -439,8 +538,9 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel):
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv -\
         0.25 * reference_vels.T
 
-    const_M = []
-    const_b = []
+    const_M = []  # constraint matrices
+    const_b = []  # constraint bounds
+    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
     const_M.append(VEL_VEL_MAT_CONST)
     const_b.append(VEL_VEL_VEC_CONST)
     const_M.append(VEL_ACC_MAT_CONST)
@@ -450,8 +550,18 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel):
         opt_M, opt_V,
         # lb=-vel_b, ub=vel_b,
         G=np.vstack(const_M), h=np.hstack(const_b),
-        solver="clarabel"
+        solver="clarabel",
+        tol_gap_abs=5e-5,
+        tol_gap_rel=5e-5,
+        tol_feas=1e-4,
+        tol_infeas_abs=5e-5,
+        tol_infeas_rel=5e-5,
+        tol_ktratio=1e-4
     )
+
+    if vel is None:
+        print("Executing last computed trajectory for braking!")
+        vel = old_plan.flatten("F")
     return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
 
@@ -554,7 +664,9 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
     return sep_planes
 
 
-def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
+def qp_planning_col_avoid(
+        reference_plan, agent_vel, crowd_poss, old_plan, wall_dist, agent_pos
+):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
     collision avoidance constraints on crowd where each member is assumed to be a circle.
@@ -586,6 +698,8 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
         M_cac = -M_ca @ M_xa
         const_M.append(M_cac)
         const_b.append(v_cb)
+
+    wall_constraints(const_M, const_b, wall_dist, agent_vel)
 
     # passive safety
     # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
@@ -638,7 +752,9 @@ def qp_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent
     return np.array([acc[:N], acc[N:]]).T
 
 
-def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
+def qp_vel_planning_col_avoid(
+    reference_plan, agent_vel, crowd_poss, old_plan, wall_dist, agent_pos
+):
     """
     Velocity control.
     Optimize navigation by using a reference plan for the upcoming horizon and use
@@ -671,6 +787,7 @@ def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, a
         const_M.append(M_cac)
         const_b.append(v_cb)
 
+    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
     const_M.append(VEL_VEL_MAT_CONST)
     const_b.append(VEL_VEL_VEC_CONST)
     const_M.append(VEL_ACC_MAT_CONST)
@@ -714,7 +831,9 @@ def qp_vel_planning_col_avoid(reference_plan, agent_vel, crowd_poss, old_plan, a
     return np.array([np.append(vel[:N - 1], 0), np.append(vel[N - 1:], 0)]).T
 
 
-def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, agent_pos):
+def qp_planning_casc_safety(
+        reference_plan, agent_vel, crowd_poss, old_plan, wall_dist, agent_pos
+):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
     collision avoidance constraints on crowd where each member is assumed to be a circle.
@@ -749,6 +868,8 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
         M_cac = -M_ca @ M_ba
         const_M.append(M_cac)
         const_b.append(v_cb)
+
+    wall_constraints(const_M, const_b, wall_dist, agent_vel)
 
     # passive safety
     # acc_b = np.ones(2 * M * N) * AGENT_MAX_ACC
@@ -804,7 +925,7 @@ def qp_planning_casc_safety(reference_plan, agent_vel, crowd_poss, old_plan, age
 
 
 def qp_vel_planning_casc_safety(
-        reference_plan, agent_vel, crowd_poss, old_plan, agent_pos
+        reference_plan, agent_vel, crowd_poss, old_plan, wall_dist, agent_pos
 ):
     """
     Velocity control.
@@ -841,6 +962,7 @@ def qp_vel_planning_casc_safety(
         const_M.append(M_cac)
         const_b.append(v_cb)
 
+    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
     const_M.append(VEL_VEL_MAT_CONST)
     const_b.append(VEL_VEL_VEC_CONST)
     const_M.append(VEL_ACC_MAT_CONST)
@@ -999,9 +1121,9 @@ for t in [0.5 * i for i in range(1)]:
             crowd_poss.resize(len(crowd_poss) // 2, 2)
         else:
             if isinstance(obs, tuple):
-                goal_vec, agent_vel = obs[0][:2], obs[0][2:4]
+                goal_vec, agent_vel, wall_dist = obs[0][:2], obs[0][2:4], obs[0][-4:]
             else:
-                goal_vec, agent_vel = obs[:2], obs[2:4]
+                goal_vec, agent_vel, wall_dist = obs[:2], obs[2:4], obs[-4:]
 
         if intersect(["-lpv", "-lp", "-c", "-mc", "-csmc", "-csc"], sys.argv):
             planned_steps, planned_vels = linear_planner(goal_vec)
@@ -1019,9 +1141,12 @@ for t in [0.5 * i for i in range(1)]:
                     planned_vels = np.append(
                         planned_vels[:N - 1], planned_vels[N:2 * N - 1]
                     )
-                    plan = qp_vel_planning_vel(planned_steps, planned_vels, agent_vel)
+                    plan = qp_vel_planning_vel(
+                        planned_steps, planned_vels, agent_vel, plan[1:], wall_dist)
                 else:
-                    plan = qp_planning_vel(planned_steps, planned_vels, agent_vel)
+                    plan = qp_planning_vel(
+                        planned_steps, planned_vels, agent_vel, plan[1:], wall_dist
+                    )
             elif "-c" in sys.argv or "-mc" in sys.argv:
                 env.set_separating_planes()
                 crowd_vels = crowd_vels if "-mc" in sys.argv else crowd_poss * 0
@@ -1032,6 +1157,7 @@ for t in [0.5 * i for i in range(1)]:
                         agent_vel,
                         horizon_crowd_poss,
                         plan[1:],
+                        wall_dist,
                         env.current_pos
                     )
                 else:
@@ -1040,6 +1166,7 @@ for t in [0.5 * i for i in range(1)]:
                         agent_vel,
                         horizon_crowd_poss,
                         plan[1:],
+                        wall_dist,
                         env.current_pos
                     )
             elif "-csc" in sys.argv or "-csmc" in sys.argv:
@@ -1063,6 +1190,7 @@ for t in [0.5 * i for i in range(1)]:
                         agent_vel,
                         horizon_crowd_poss,
                         plan[1:],
+                        wall_dist,
                         env.current_pos
                     )
                 else:
@@ -1071,15 +1199,16 @@ for t in [0.5 * i for i in range(1)]:
                         agent_vel,
                         horizon_crowd_poss,
                         plan[1:],
+                        wall_dist,
                         env.current_pos
                     )
             else:
                 if "-v" in sys.argv:
-                    plan = qp_vel_planning(planned_steps, agent_vel)
+                    plan = qp_vel_planning(planned_steps, agent_vel, plan[1:], wall_dist)
                 else:
-                    plan = qp_planning(planned_steps, agent_vel)
+                    plan = qp_planning(planned_steps, agent_vel, plan[1:], wall_dist)
         else:
-            plan = qp(goal_vec, agent_vel)
+            plan = qp(goal_vec, agent_vel, plan[1:], wall_dist)
 
         vels.append(np.linalg.norm(env.current_vel))
         obs, reward, terminated, truncated, info = env.step(plan[0])
