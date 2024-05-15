@@ -10,9 +10,10 @@ from qpsolvers import solve_qp
 PHYSICAL_SPACE = 0.4
 AGENT_MAX_VEL = 3.0
 AGENT_MAX_ACC = 1.5
-MAX_STOPPING_DIST = 6
+TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
+DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
+MAX_STOPPING_DIST = 2 * DIST_TO_STOP_FROM_MAX
 DT = 0.1
-MAX_STEPS = 4 / DT  # The episode is 4 seconds
 """
 The horizon needs to be at least the minimal length of a braking trajectory plus one step.
 In order to achieve maximal velocity the braking trajecotry would be MAX_VEL / MAX_ACC.
@@ -23,8 +24,6 @@ at leas 2 / 0.1 + 1 = 21 in order to achieve maximal velocity.
 """
 N = 21
 M = 20
-TIME_TO_STOP_FROM_MAX = AGENT_MAX_VEL / AGENT_MAX_ACC
-DIST_TO_STOP_FROM_MAX = TIME_TO_STOP_FROM_MAX ** 2 * AGENT_MAX_ACC * 0.5
 
 
 # debug
@@ -66,6 +65,13 @@ in 2D (M_pv) we stack x-y one after the other and rewrite M_xv as [1,...N,1,...N
 In case of M_xa we generalize for A = (A_x | A_y)^T so M_xa (M_pa) becomes
 M_xa = [[ M_xa |  0   ]
         [  0   | M_xa ]]
+
+The letter b in the matrix definitions below (like M_ba, M_bva) refers to the matrives
+relevant for cascading MPC where a braking trajectory is computed for each step in the
+future horizon.
+
+Whereas matrices starting with MV (like MV_xv, MV_a) are used to refere to matrices that
+reflect the dynamics when using velocity as control.
 """
 M_xv = np.hstack([np.arange(1, N + 1)] * 2) * DT
 M_bv = np.hstack([np.hstack([np.arange(i, N + i) for i in range(1, M + 1)])] * 2) * DT
@@ -132,11 +138,8 @@ MV_b_a = np.stack(
     [np.hstack([MV_b_a, MV_b_a * 0]), np.hstack([MV_b_a * 0, MV_b_a])]
 ).reshape(2 * M * N, 2 * M * (N - 1))
 
-F_vp = np.zeros(N - 1, dtype=int)
-F_vp[0] = 1
-F_vp = np.hstack([np.hstack([F_vp] * M)] * 2)
-MV_v = np.diag(F_vp)
-
+# Filters for cascading, retrieves the indexes relevant only for the objective (reference
+# trajectory)
 F_p = np.zeros(N, dtype=int)
 F_p[0] = 1
 F_p = np.hstack([np.hstack([F_p] * M)] * 2)
@@ -151,6 +154,7 @@ M_bva_b = M_bva[np.nonzero(F_b)]
 
 MV_bv_f = MV_bv[np.nonzero(F_p)]
 
+# Precomputing acceleration and velocity constraints
 horizon = N
 m_v = M_va
 if "-csc" in sys.argv or "-csmc" in sys.argv:
