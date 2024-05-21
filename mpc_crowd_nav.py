@@ -237,7 +237,7 @@ m_xa = M_ba if "-csc" in sys.argv or "-csmc" in sys.argv else M_xa
 
 
 def wall_constraints(const_M, const_b, wall_dist, agent_vel):
-    if wall_dist[0] < MAX_STOPPING_DIST * 1.5 or wall_dist[2] < MAX_STOPPING_DIST * 1.5:
+    if wall_dist[0] < MAX_STOPPING_DIST * 0.6 or wall_dist[2] < MAX_STOPPING_DIST * 0.6:
         poss = np.repeat(
             np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
                        wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
@@ -245,7 +245,7 @@ def wall_constraints(const_M, const_b, wall_dist, agent_vel):
         v_cb = poss - m_xv * np.repeat(agent_vel, horizon_)
         const_M.append(m_xa)
         const_b.append(v_cb)
-    if wall_dist[1] < MAX_STOPPING_DIST * 1.5 or wall_dist[3] < MAX_STOPPING_DIST * 1.5:
+    if wall_dist[1] < MAX_STOPPING_DIST * 0.6 or wall_dist[3] < MAX_STOPPING_DIST * 0.6:
         poss_ = np.repeat(
             np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
                        wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
@@ -259,7 +259,7 @@ mv_xv = MV_bv if "-csc" in sys.argv or "-csmc" in sys.argv else MV_xv
 
 
 def vel_wall_constraints(const_M, const_b, wall_dist, agent_vel):
-    if wall_dist[0] < MAX_STOPPING_DIST * 1.5 or wall_dist[2] < MAX_STOPPING_DIST * 1.5:
+    if wall_dist[0] < MAX_STOPPING_DIST * 0.6 or wall_dist[2] < MAX_STOPPING_DIST * 0.6:
         poss = np.repeat(
             np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
                        wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
@@ -268,7 +268,7 @@ def vel_wall_constraints(const_M, const_b, wall_dist, agent_vel):
         const_M.append(mv_xv)
         const_b.append(v_cb)
 
-    if wall_dist[1] < MAX_STOPPING_DIST * 1.5 or wall_dist[3] < MAX_STOPPING_DIST * 1.5:
+    if wall_dist[1] < MAX_STOPPING_DIST * 0.6 or wall_dist[3] < MAX_STOPPING_DIST * 0.6:
         poss_ = np.repeat(
             np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
                        wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
