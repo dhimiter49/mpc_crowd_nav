@@ -264,7 +264,7 @@ def vel_wall_constraints(const_M, const_b, wall_dist, agent_vel):
             np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
                        wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
         )
-        v_cb = poss - 0.5 * np.repeat(agent_vel, horizon_)
+        v_cb = poss - 0.5 * DT * np.repeat(agent_vel, horizon_)
         const_M.append(mv_xv)
         const_b.append(v_cb)
 
@@ -273,7 +273,7 @@ def vel_wall_constraints(const_M, const_b, wall_dist, agent_vel):
             np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
                        wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
         )
-        v_cb = poss_ + 0.5 * np.repeat(agent_vel, horizon_)
+        v_cb = poss_ + 0.5 * DT * np.repeat(agent_vel, horizon_)
         const_M.append(-mv_xv)
         const_b.append(v_cb)
 
