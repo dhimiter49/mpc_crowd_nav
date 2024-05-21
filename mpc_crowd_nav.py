@@ -1215,6 +1215,7 @@ for t in [0.5 * i for i in range(1)]:
         return_ += reward
         None if "-nr" in sys.argv else env.render()
         if terminated or truncated:
+            plan = np.ones((N, 2))
             # print(return_)
             # print(np.max(vels))
             separating_planes = None
