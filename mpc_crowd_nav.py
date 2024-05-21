@@ -235,24 +235,27 @@ horizon_ = M * N if "-csc" in sys.argv or "-csmc" in sys.argv else N
 m_xv = M_bv if "-csc" in sys.argv or "-csmc" in sys.argv else M_xv
 m_xa = M_ba if "-csc" in sys.argv or "-csmc" in sys.argv else M_xa
 
+qp_problem = None
+opt_M = None
+
 
 def wall_constraints(const_M, const_b, wall_dist, agent_vel):
-    if wall_dist[0] < MAX_STOPPING_DIST * 0.6 or wall_dist[2] < MAX_STOPPING_DIST * 0.6:
-        poss = np.repeat(
-            np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
-                       wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
-        )
-        v_cb = poss - m_xv * np.repeat(agent_vel, horizon_)
-        const_M.append(m_xa)
-        const_b.append(v_cb)
-    if wall_dist[1] < MAX_STOPPING_DIST * 0.6 or wall_dist[3] < MAX_STOPPING_DIST * 0.6:
-        poss_ = np.repeat(
-            np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
-                       wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
-        )
-        v_cb = poss_ + m_xv * np.repeat(agent_vel, horizon_)
-        const_M.append(-m_xa)
-        const_b.append(v_cb)
+    # if wall_dist[0] < MAX_STOPPING_DIST * 0.6 or wall_dist[2] < MAX_STOPPING_DIST * 0.6:
+    poss = np.repeat(
+        np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
+                   wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
+    )
+    v_cb = poss - m_xv * np.repeat(agent_vel, horizon_)
+    const_M.append(m_xa)
+    const_b.append(v_cb)
+    # if wall_dist[1] < MAX_STOPPING_DIST * 0.6 or wall_dist[3] < MAX_STOPPING_DIST * 0.6:
+    poss_ = np.repeat(
+        np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
+                   wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
+    )
+    v_cb = poss_ + m_xv * np.repeat(agent_vel, horizon_)
+    const_M.append(-m_xa)
+    const_b.append(v_cb)
 
 
 mv_xv = MV_bv if "-csc" in sys.argv or "-csmc" in sys.argv else MV_xv
@@ -681,7 +684,9 @@ def qp_planning_col_avoid(
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
+    global opt_M
+    if opt_M is None:
+        opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
 
@@ -1071,7 +1076,7 @@ returns, return_, vels, action = [], 0, [], [0, 0]
 step_counter = 0
 ep_counter = 0
 obs = env.reset()
-plan = np.ones((N, 2))
+plan = np.zeros((N, 2))
 print("Observation shape: ", env.observation_space.shape)
 print("Action shape: ", env.action_space.shape)
 
@@ -1215,7 +1220,7 @@ for t in [0.5 * i for i in range(1)]:
         return_ += reward
         None if "-nr" in sys.argv else env.render()
         if terminated or truncated:
-            plan = np.ones((N, 2))
+            plan = np.zeros((N, 2))
             # print(return_)
             # print(np.max(vels))
             separating_planes = None
