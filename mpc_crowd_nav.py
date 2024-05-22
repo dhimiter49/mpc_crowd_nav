@@ -346,7 +346,9 @@ def qp(goal_vec, agent_vel, old_plan, wall_dist):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 0.5 * M_va.T @ M_va + M_xa.T @ M_xa
+    global opt_M
+    if opt_M is None:
+        opt_M = 0.5 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.5 * np.repeat(agent_vel, N) @ M_va
 
@@ -399,7 +401,9 @@ def qp_planning(reference_plan, agent_vel, old_plan, wall_dist):
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
+    global opt_M
+    if opt_M is None:
+        opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
 
@@ -452,7 +456,9 @@ def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
         (numpy.ndarray): array with two elements representing the new velocity to be
             applied in the next step
     """
-    opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+    global opt_M
+    if opt_M is None:
+        opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
 
     const_M = []  # constraint matrices
@@ -499,7 +505,9 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wall_di
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 0.26 * np.eye(2 * N) + 0.2 * M_va.T @ M_va + M_xa.T @ M_xa
+    global opt_M
+    if opt_M is None:
+        opt_M = 0.26 * np.eye(2 * N) + 0.2 * M_va.T @ M_va + M_xa.T @ M_xa
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.2 * (-reference_vels).T @ M_va
 
@@ -555,7 +563,9 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wal
         (numpy.ndarray): array with two elements representing the new velocity to be
             applied in the next step
     """
-    opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+    global opt_M
+    if opt_M is None:
+        opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv -\
         0.25 * reference_vels.T
 
@@ -798,7 +808,9 @@ def qp_vel_planning_col_avoid(
         (numpy.ndarray): array with two elements representing the new velocity to be
             applied in the next step
     """
-    opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+    global opt_M
+    if opt_M is None:
+        opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
 
     const_M = []  # constraint matrices
@@ -883,7 +895,9 @@ def qp_planning_casc_safety(
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = 0.075 * M_bva_f.T @ M_bva_f + M_ba_f.T @ M_ba_f
+    global opt_M
+    if opt_M is None:
+        opt_M = 0.075 * M_bva_f.T @ M_bva_f + M_ba_f.T @ M_ba_f
     opt_V = (-reference_plan + M_bv_f * np.repeat(agent_vel, M)).T @ M_ba_f +\
         0.075 * np.repeat(agent_vel, M) @ M_bva_f
 
@@ -911,10 +925,12 @@ def qp_planning_casc_safety(
     term_const_M = M_bva_b
     term_const_b = -np.repeat(agent_vel, M)
 
+    idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
-    const_M.append(VEL_MAT_CONST)
-    const_b.append(vel_vec_const(agent_vel))
+    const_M.append(VEL_MAT_CONST[idxs])
+    const_b.append(vel_vec_const(agent_vel, idxs))
+
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -922,12 +938,12 @@ def qp_planning_casc_safety(
         G=np.vstack(const_M), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel",
-        tol_gap_abs=5e-5,
-        tol_gap_rel=5e-5,
-        tol_feas=1e-4,
-        tol_infeas_abs=5e-5,
-        tol_infeas_rel=5e-5,
-        tol_ktratio=1e-4
+        tol_gap_abs=5e-3,
+        tol_gap_rel=5e-3,
+        tol_feas=1e-2,
+        tol_infeas_abs=5e-3,
+        tol_infeas_rel=5e-3,
+        tol_ktratio=1e-2
     )
 
     global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
@@ -980,7 +996,9 @@ def qp_vel_planning_casc_safety(
         (numpy.ndarray): array with two elements representing the change in velocity (acc-
             eleration) to be applied in the next step
     """
-    opt_M = MV_bv_f.T @ MV_bv_f + 0.02 * np.eye(2 * M * (N - 1))
+    global opt_M
+    if opt_M is None:
+        opt_M = MV_bv_f.T @ MV_bv_f + 0.02 * np.eye(2 * M * (N - 1))
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, M)).T @ MV_bv_f
 
     const_M = []  # constraint matrices
@@ -1011,12 +1029,12 @@ def qp_vel_planning_casc_safety(
         opt_M, opt_V,
         G=np.vstack(const_M), h=np.hstack(const_b),
         solver="clarabel",
-        tol_gap_abs=5e-5,
-        tol_gap_rel=5e-5,
-        tol_feas=1e-4,
-        tol_infeas_abs=5e-5,
-        tol_infeas_rel=5e-5,
-        tol_ktratio=1e-4
+        tol_gap_abs=5e-3,
+        tol_gap_rel=5e-3,
+        tol_feas=1e-2,
+        tol_infeas_abs=5e-3,
+        tol_infeas_rel=5e-3,
+        tol_ktratio=1e-2
     )
 
     global LAST_PREDICTED_STATES, LAST_PREDICTED_VELOCITY
