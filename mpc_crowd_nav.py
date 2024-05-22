@@ -48,6 +48,7 @@ def gen_polygon(radius, sides=8):
         polygon_lines.append([m, b])
     return np.array(polygon_lines)
 
+
 acc_lin_sides = 8
 vel_lin_sides = 8
 POLYGON_ACC_LINES = gen_polygon(AGENT_MAX_ACC, sides=acc_lin_sides)
@@ -707,9 +708,12 @@ def qp_planning_col_avoid(
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
-        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+        dist = np.linalg.norm(poss, axis=-1)
+        vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
+        angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
+        if np.all(dist > MAX_STOPPING_DIST) or\
+           (np.all(dist > MAX_STOPPING_DIST / 2) and np.all(angle)):
             continue
-        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(N) * vec[:, 0], np.eye(N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + M_xv * np.repeat(agent_vel, N)) -\
             np.array([4 * PHYSICAL_SPACE] * N)
@@ -795,9 +799,12 @@ def qp_vel_planning_col_avoid(
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
-        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+        dist = np.linalg.norm(poss, axis=-1)
+        vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
+        angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
+        if np.all(dist > MAX_STOPPING_DIST) or\
+           (np.all(dist > MAX_STOPPING_DIST / 2) and np.all(angle)):
             continue
-        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(N) * vec[:, 0], np.eye(N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + 0.5 * DT * np.repeat(agent_vel, N)) -\
             np.array([4 * PHYSICAL_SPACE] * N)
@@ -877,9 +884,12 @@ def qp_planning_casc_safety(
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
-        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+        dist = np.linalg.norm(poss, axis=-1)
+        vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
+        angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
+        if np.all(dist > MAX_STOPPING_DIST) or\
+           (np.all(dist > MAX_STOPPING_DIST / 2) and np.all(angle)):
             continue
-        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(M * N) * vec[:, 0], np.eye(M * N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + M_bv * np.repeat(agent_vel, M * N)) -\
             np.array([4 * PHYSICAL_SPACE] * M * N)
@@ -970,9 +980,12 @@ def qp_vel_planning_casc_safety(
     const_b = []  # constraint bounds
     for member in range(len(crowd_poss[1])):
         poss = crowd_poss[:, member, :]
-        if np.all(np.linalg.norm(poss, axis=-1) > MAX_STOPPING_DIST):
+        dist = np.linalg.norm(poss, axis=-1)
+        vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
+        angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
+        if np.all(dist > MAX_STOPPING_DIST) or\
+           (np.all(dist > MAX_STOPPING_DIST / 2) and np.all(angle)):
             continue
-        vec = -poss / np.stack([np.linalg.norm(poss, axis=-1)] * 2, axis=-1)
         M_ca = np.hstack([np.eye(M * N) * vec[:, 0], np.eye(M * N) * vec[:, 1]])
         v_cb = M_ca @ (-poss.flatten("F") + 0.5 * DT * np.repeat(agent_vel, M * N)) -\
             np.array([4 * PHYSICAL_SPACE] * M * N)
