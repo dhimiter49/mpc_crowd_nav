@@ -48,9 +48,10 @@ def gen_polygon(radius, sides=8):
         polygon_lines.append([m, b])
     return np.array(polygon_lines)
 
-
-POLYGON_ACC_LINES = gen_polygon(AGENT_MAX_ACC, sides=8)
-POLYGON_VEL_LINES = gen_polygon(AGENT_MAX_VEL, sides=8)
+acc_lin_sides = 8
+vel_lin_sides = 8
+POLYGON_ACC_LINES = gen_polygon(AGENT_MAX_ACC, sides=acc_lin_sides)
+POLYGON_VEL_LINES = gen_polygon(AGENT_MAX_VEL, sides=vel_lin_sides)
 
 
 """
@@ -170,6 +171,17 @@ elif "-v" in sys.argv:
     comp = 1
     m_b_a = MV_a
 
+
+def relevant_idxs(agent_vel):
+    angle = np.arctan2(agent_vel[1], agent_vel[0])
+    angle = 2 * np.pi + angle if angle < 0 else angle
+    angle_idx = angle // (2 * np.pi / 8)
+    idxs = [angle_idx, (angle_idx + 1) % 8, (angle_idx - 1) % 8]
+    idxs = np.hstack(list(idxs) * horizon) +\
+        np.repeat(np.arange(0, horizon * 8, 8), 3)
+    return np.array(idxs, dtype=int)
+
+
 if "-v" not in sys.argv:
     # velocity constraint using the inner polygon of a circle with radius AGENT_MAX_VEL
     M_v_ = np.vstack([np.eye(horizon) * -line[0] for line in POLYGON_VEL_LINES])
@@ -182,8 +194,9 @@ if "-v" not in sys.argv:
     VEL_MAT_CONST = ((M_v_ @ m_v).T * sgn_vel).T
 
 
-    def vel_vec_const(agent_vel):
-        return sgn_vel * (b_v_ - M_v_ @ np.repeat(agent_vel, horizon))
+    def vel_vec_const(agent_vel, idxs=None):
+        idxs = np.arange(len(sgn_vel)) if idxs is None else idxs
+        return sgn_vel[idxs] * (b_v_[idxs] - M_v_[idxs] @ np.repeat(agent_vel, horizon))
 
 
     # acceleration/control constraint using the inner polygon of a circle with radius
@@ -302,7 +315,7 @@ def linear_planner(goal_vec, horizon=N):
     """
     steps = np.zeros((horizon, 2))
     vels = np.stack(
-        [(AGENT_MAX_VEL + 1) / np.linalg.norm(goal_vec) * goal_vec] * horizon
+        [(2 * AGENT_MAX_VEL) / np.linalg.norm(goal_vec) * goal_vec] * horizon
     ).reshape(horizon, 2)
     if AGENT_MAX_VEL * DT > np.linalg.norm(goal_vec):
         oneD_steps = np.array([np.linalg.norm(goal_vec)])
@@ -316,7 +329,7 @@ def linear_planner(goal_vec, horizon=N):
     n_steps = min(horizon, len(oneD_steps))
     steps[:n_steps, :] = twoD_steps[:n_steps]
     steps[n_steps:, :] += goal_vec
-    vels[n_steps - 1:, :] = np.zeros(2)
+    vels[n_steps:, :] = np.zeros(2)
     return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
