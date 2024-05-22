@@ -358,10 +358,11 @@ def qp(goal_vec, agent_vel, old_plan, wall_dist):
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     wall_constraints(const_M, const_b, wall_dist, agent_vel)
-    const_M.append(VEL_MAT_CONST)
-    const_b.append(vel_vec_const(agent_vel))
+    idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
+    const_M.append(VEL_MAT_CONST[idxs])
+    const_b.append(vel_vec_const(agent_vel, idxs))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -410,10 +411,11 @@ def qp_planning(reference_plan, agent_vel, old_plan, wall_dist):
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
-    const_M.append(VEL_MAT_CONST)
-    const_b.append(vel_vec_const(agent_vel))
+    const_M.append(VEL_MAT_CONST[idxs])
+    const_b.append(vel_vec_const(agent_vel, idxs))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -456,8 +458,9 @@ def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
-    const_M.append(VEL_VEL_MAT_CONST)
-    const_b.append(VEL_VEL_VEC_CONST)
+    idxs = relevant_idxs(agent_vel)
+    const_M.append(VEL_VEL_MAT_CONST[idxs])
+    const_b.append(VEL_VEL_VEC_CONST[idxs])
     const_M.append(VEL_ACC_MAT_CONST)
     const_b.append(vel_acc_vec_const(agent_vel))
 
@@ -508,10 +511,11 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wall_di
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
-    const_M.append(VEL_MAT_CONST)
-    const_b.append(vel_vec_const(agent_vel))
+    const_M.append(VEL_MAT_CONST[idxs])
+    const_b.append(vel_vec_const(agent_vel, idxs))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -558,8 +562,9 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wal
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
     vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
-    const_M.append(VEL_VEL_MAT_CONST)
-    const_b.append(VEL_VEL_VEC_CONST)
+    idxs = relevant_idxs(agent_vel)
+    const_M.append(VEL_VEL_MAT_CONST[idxs])
+    const_b.append(VEL_VEL_VEC_CONST[idxs])
     const_M.append(VEL_ACC_MAT_CONST)
     const_b.append(vel_acc_vec_const(agent_vel))
 
@@ -728,10 +733,11 @@ def qp_planning_col_avoid(
     term_const_M = M_va[[N - 1, 2 * N - 1], :]
     term_const_b = -agent_vel
 
+    idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
-    const_M.append(VEL_MAT_CONST)
-    const_b.append(vel_vec_const(agent_vel))
+    const_M.append(VEL_MAT_CONST[idxs])
+    const_b.append(vel_vec_const(agent_vel, idxs))
 
     acc = solve_qp(
         opt_M, opt_V,
@@ -813,8 +819,9 @@ def qp_vel_planning_col_avoid(
         const_b.append(v_cb)
 
     vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
-    const_M.append(VEL_VEL_MAT_CONST)
-    const_b.append(VEL_VEL_VEC_CONST)
+    idxs = relevant_idxs(agent_vel)
+    const_M.append(VEL_VEL_MAT_CONST[idxs])
+    const_b.append(VEL_VEL_VEC_CONST[idxs])
     const_M.append(VEL_ACC_MAT_CONST)
     const_b.append(vel_acc_vec_const(agent_vel))
 
@@ -994,8 +1001,9 @@ def qp_vel_planning_casc_safety(
         const_b.append(v_cb)
 
     vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
-    const_M.append(VEL_VEL_MAT_CONST)
-    const_b.append(VEL_VEL_VEC_CONST)
+    idxs = relevant_idxs(agent_vel)
+    const_M.append(VEL_VEL_MAT_CONST[idxs])
+    const_b.append(VEL_VEL_VEC_CONST[idxs])
     const_M.append(VEL_ACC_MAT_CONST)
     const_b.append(vel_acc_vec_const(agent_vel))
 
