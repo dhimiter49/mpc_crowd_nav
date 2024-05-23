@@ -385,13 +385,15 @@ def qp(goal_vec, agent_vel, old_plan, wall_dist):
     return np.array([acc[:N], acc[N:]]).T
 
 
-def qp_planning(reference_plan, agent_vel, old_plan, wall_dist):
+def qp_planning(reference_plan, reference_vels, agent_vel, old_plan, wall_dist):
     """
     Optimize navigation by using a reference plan for the upcoming horizon.
 
     Args:
         reference_plan (numpy.ndarray): vector of reference points with same size as the
             given horizon
+        reference_vels (numpy.ndarray): vector of reference velocities with same size as
+            the given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
         wall_dist (numpy.ndarray): distance to the four walls
     Return:
@@ -400,10 +402,16 @@ def qp_planning(reference_plan, agent_vel, old_plan, wall_dist):
     """
     global opt_M
     if opt_M is None:
-        opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
-        opt_M = scipy.sparse.csc_matrix(opt_M)
-    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
-        0.25 * np.repeat(agent_vel, N) @ M_va
+        if reference_plan is not None:
+            opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
+            opt_M = scipy.sparse.csc_matrix(opt_M)
+        else:
+            opt_M = scipy.sparse.csc_matrix(M_va.T @ M_va)
+    if reference_plan is not None:
+        opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
+            0.25 * np.repeat(agent_vel, N) @ M_va
+    else:
+        opt_V = (-reference_vels).T @ M_va
 
     # passive safety
     # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
@@ -700,7 +708,7 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
 
 
 def qp_planning_col_avoid(
-        reference_plan, agent_vel, crowd_poss, old_plan, wall_dist, agent_pos
+    reference_plan, reference_vels, agent_vel, crowd_poss, old_plan, wall_dist, agent_pos
 ):
     """
     Optimize navigation by using a reference plan for the upcoming horizon and use
@@ -709,6 +717,8 @@ def qp_planning_col_avoid(
     Args:
         reference_plan (numpy.ndarray): vector of reference points with same size as the
             given horizon
+        reference_vels (numpy.ndarray): vector of reference velocities with same size as
+            the given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
         crowd_poss (numpy.ndarray): 2D position of each member of the crowd
         old_plan (numpy.ndarrray): plan from last iteration
@@ -718,10 +728,16 @@ def qp_planning_col_avoid(
     """
     global opt_M
     if opt_M is None:
-        opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
-        opt_M = scipy.sparse.csc_matrix(opt_M)
-    opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
-        0.25 * np.repeat(agent_vel, N) @ M_va
+        if reference_plan is not None:
+            opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
+            opt_M = scipy.sparse.csc_matrix(opt_M)
+        else:
+            opt_M = scipy.sparse.csc_matrix(M_va.T @ M_va)
+    if reference_plan is not None:
+        opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
+            0.25 * np.repeat(agent_vel, N) @ M_va
+    else:
+        opt_V = (-reference_vels).T @ M_va
 
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
@@ -1198,15 +1214,16 @@ for t in [0.5 * i for i in range(1)]:
             steps_vel[:, 0] = planned_vels[:N]
             steps_vel[:, 1] = planned_vels[N:]
             env.set_trajectory(steps - steps[0], steps_vel)
+            planned_vels[:N] -= agent_vel[0]
+            planned_vels[N:] -= agent_vel[1]
             if "-lpv" in sys.argv:
-                planned_vels[:N] -= agent_vel[0]
-                planned_vels[N:] -= agent_vel[1]
                 if "-v" in sys.argv:
                     planned_vels = np.append(
                         planned_vels[:N - 1], planned_vels[N:2 * N - 1]
                     )
                     plan = qp_vel_planning_vel(
-                        planned_steps, planned_vels, agent_vel, plan[1:], wall_dist)
+                        planned_steps, planned_vels, agent_vel, plan[1:], wall_dist
+                    )
                 else:
                     plan = qp_planning_vel(
                         planned_steps, planned_vels, agent_vel, plan[1:], wall_dist
@@ -1225,14 +1242,26 @@ for t in [0.5 * i for i in range(1)]:
                         env.current_pos
                     )
                 else:
-                    plan = qp_planning_col_avoid(
-                        planned_steps,
-                        agent_vel,
-                        horizon_crowd_poss,
-                        plan[1:],
-                        wall_dist,
-                        env.current_pos
-                    )
+                    if "-vp" in sys.argv:
+                        plan = qp_planning_col_avoid(
+                            None,
+                            planned_vels,
+                            agent_vel,
+                            horizon_crowd_poss,
+                            plan[1:],
+                            wall_dist,
+                            env.current_pos
+                        )
+                    else:
+                        plan = qp_planning_col_avoid(
+                            planned_steps,
+                            None,
+                            agent_vel,
+                            horizon_crowd_poss,
+                            plan[1:],
+                            wall_dist,
+                            env.current_pos
+                        )
             elif "-csc" in sys.argv or "-csmc" in sys.argv:
                 # env.set_separating_planes()
                 planned_steps, planned_vels = linear_planner(goal_vec, M)
@@ -1243,6 +1272,8 @@ for t in [0.5 * i for i in range(1)]:
                 steps_vel[:, 0] = planned_vels[:M]
                 steps_vel[:, 1] = planned_vels[M:]
                 env.set_trajectory(steps - steps[0], steps_vel)
+                planned_vels[:M] -= agent_vel[0]
+                planned_vels[M:] -= agent_vel[1]
                 crowd_vels = crowd_vels if "-csmc" in sys.argv else crowd_poss * 0
                 horizon_crowd_poss = calculate_crowd_positions(
                     crowd_poss, crowd_vels, M + N
@@ -1269,8 +1300,12 @@ for t in [0.5 * i for i in range(1)]:
             else:
                 if "-v" in sys.argv:
                     plan = qp_vel_planning(planned_steps, agent_vel, plan[1:], wall_dist)
+                elif "-vp" in sys.argv:
+                    plan = qp_planning(
+                        None, planned_vels, agent_vel, plan[1:], wall_dist
+                    )
                 else:
-                    plan = qp_planning(planned_steps, agent_vel, plan[1:], wall_dist)
+                    plan = qp_planning(planned_steps, None, agent_vel, plan[1:], wall_dist)
         else:
             plan = qp(goal_vec, agent_vel, plan[1:], wall_dist)
 
