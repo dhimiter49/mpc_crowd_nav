@@ -349,6 +349,7 @@ def qp(goal_vec, agent_vel, old_plan, wall_dist):
     global opt_M
     if opt_M is None:
         opt_M = 0.5 * M_va.T @ M_va + M_xa.T @ M_xa
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-np.repeat(goal_vec, N) + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.5 * np.repeat(agent_vel, N) @ M_va
 
@@ -369,7 +370,7 @@ def qp(goal_vec, agent_vel, old_plan, wall_dist):
     acc = solve_qp(
         opt_M, opt_V,
         # lb=-acc_b, ub=acc_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel",
         tol_gap_abs=5e-5,
@@ -404,6 +405,7 @@ def qp_planning(reference_plan, agent_vel, old_plan, wall_dist):
     global opt_M
     if opt_M is None:
         opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
 
@@ -424,7 +426,7 @@ def qp_planning(reference_plan, agent_vel, old_plan, wall_dist):
     acc = solve_qp(
         opt_M, opt_V,
         # lb=-acc_b, ub=acc_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel",
         tol_gap_abs=5e-5,
@@ -459,6 +461,7 @@ def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
     global opt_M
     if opt_M is None:
         opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
 
     const_M = []  # constraint matrices
@@ -473,7 +476,7 @@ def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
     vel = solve_qp(
         opt_M, opt_V,
         # lb=-vel_b, ub=vel_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         solver="clarabel",
         tol_gap_abs=5e-5,
         tol_gap_rel=5e-5,
@@ -508,6 +511,7 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wall_di
     global opt_M
     if opt_M is None:
         opt_M = 0.26 * np.eye(2 * N) + 0.2 * M_va.T @ M_va + M_xa.T @ M_xa
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.2 * (-reference_vels).T @ M_va
 
@@ -528,7 +532,7 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wall_di
     acc = solve_qp(
         opt_M, opt_V,
         # lb=-acc_b, ub=acc_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel",
         tol_gap_abs=5e-5,
@@ -566,6 +570,7 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wal
     global opt_M
     if opt_M is None:
         opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv -\
         0.25 * reference_vels.T
 
@@ -581,7 +586,7 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wal
     vel = solve_qp(
         opt_M, opt_V,
         # lb=-vel_b, ub=vel_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         solver="clarabel",
         tol_gap_abs=5e-5,
         tol_gap_rel=5e-5,
@@ -621,10 +626,11 @@ def opt_sep_plane(crowd_pos, old_sep_plane, next_crowd_pos=None):
     M_cls = np.array([old_sep_plane[0], old_sep_plane[1], 0, 0])
 
     opt_M = np.diag([beta, beta, beta, alpha])
+    opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = np.concatenate((old_sep_plane, [-1]))
     sep_plane = solve_qp(
         opt_M, opt_V,
-        G=np.vstack([M_cc, -M_ca, -M_cs, M_cs, -M_cls, M_cls]),
+        G=scipy.sparse.csc_matrix(np.vstack([M_cc, -M_ca, -M_cs, M_cs, -M_cls, M_cls])),
         h=np.hstack([
             np.zeros(1),
             np.zeros(1),
@@ -672,12 +678,13 @@ def opt_sep_planes(crowd_poss, old_sep_planes, next_crowd_poss=None):
     opt_M = np.eye((4 * n_crowd)) * beta
     for i in range(n_crowd):
         opt_M[i * 4 + 3, i * 4 + 3] = alpha
+    opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = -np.ones(4 * n_crowd)
     for i in range(n_crowd):
         opt_V[i * 4:i * 4 + 3] *= 2 * old_sep_planes[i * 3:i * 3 + 3]
     sep_planes = solve_qp(
         opt_M, opt_V,
-        G=np.vstack([M_cc, -M_ca, -M_cs, M_cs, -M_cls, M_cls]),
+        G=scipy.sparse.csc_matrix(np.vstack([M_cc, -M_ca, -M_cs, M_cs, -M_cls, M_cls])),
         h=np.hstack([
             np.zeros(n_crowd),
             np.zeros(n_crowd),
@@ -716,6 +723,7 @@ def qp_planning_col_avoid(
     global opt_M
     if opt_M is None:
         opt_M = 0.25 * M_va.T @ M_va + M_xa.T @ M_xa
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + M_xv * np.repeat(agent_vel, N)).T @ M_xa +\
         0.25 * np.repeat(agent_vel, N) @ M_va
 
@@ -752,7 +760,7 @@ def qp_planning_col_avoid(
     acc = solve_qp(
         opt_M, opt_V,
         # lb=-acc_b, ub=acc_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         A=term_const_M, b=term_const_b,
         solver="clarabel",
         tol_gap_abs=5e-5,
@@ -811,6 +819,7 @@ def qp_vel_planning_col_avoid(
     global opt_M
     if opt_M is None:
         opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
 
     const_M = []  # constraint matrices
@@ -840,7 +849,7 @@ def qp_vel_planning_col_avoid(
     vel = solve_qp(
         opt_M, opt_V,
         # lb=-acc_b, ub=acc_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         solver="clarabel",
         tol_gap_abs=5e-5,
         tol_gap_rel=5e-5,
@@ -898,6 +907,7 @@ def qp_planning_casc_safety(
     global opt_M
     if opt_M is None:
         opt_M = 0.075 * M_bva_f.T @ M_bva_f + M_ba_f.T @ M_ba_f
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + M_bv_f * np.repeat(agent_vel, M)).T @ M_ba_f +\
         0.075 * np.repeat(agent_vel, M) @ M_bva_f
 
@@ -935,8 +945,8 @@ def qp_planning_casc_safety(
     acc = solve_qp(
         opt_M, opt_V,
         # lb=-acc_b, ub=acc_b,
-        G=np.vstack(const_M), h=np.hstack(const_b),
-        A=term_const_M, b=term_const_b,
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
+        A=scipy.sparse.csc_matrix(term_const_M), b=term_const_b,
         solver="clarabel",
         tol_gap_abs=5e-3,
         tol_gap_rel=5e-3,
@@ -999,6 +1009,7 @@ def qp_vel_planning_casc_safety(
     global opt_M
     if opt_M is None:
         opt_M = MV_bv_f.T @ MV_bv_f + 0.02 * np.eye(2 * M * (N - 1))
+        opt_M = scipy.sparse.csc_matrix(opt_M)
     opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, M)).T @ MV_bv_f
 
     const_M = []  # constraint matrices
@@ -1027,7 +1038,7 @@ def qp_vel_planning_casc_safety(
 
     vel = solve_qp(
         opt_M, opt_V,
-        G=np.vstack(const_M), h=np.hstack(const_b),
+        G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
         solver="clarabel",
         tol_gap_abs=5e-3,
         tol_gap_rel=5e-3,
