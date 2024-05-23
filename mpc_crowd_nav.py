@@ -315,22 +315,18 @@ def linear_planner(goal_vec, horizon=N):
             and the second N elements are the y-coords
     """
     steps = np.zeros((horizon, 2))
-    vels = np.stack(
-        [(2 * AGENT_MAX_VEL) / np.linalg.norm(goal_vec) * goal_vec] * horizon
-    ).reshape(horizon, 2)
-    if AGENT_MAX_VEL * DT > np.linalg.norm(goal_vec):
-        oneD_steps = np.array([np.linalg.norm(goal_vec)])
+    dist = np.linalg.norm(goal_vec)
+    vels = np.stack([(AGENT_MAX_VEL) / dist * goal_vec] * horizon).reshape(horizon, 2)
+    if AGENT_MAX_VEL * DT > dist:
+        oneD_steps = np.array([dist])
     else:
-        oneD_steps = np.arange(
-            AGENT_MAX_VEL * DT, np.linalg.norm(goal_vec), 2 * AGENT_MAX_VEL * DT
-        )
-    twoD_steps = np.array([
-        i / np.linalg.norm(goal_vec) * goal_vec for i in oneD_steps
-    ])
+        oneD_steps = np.arange(AGENT_MAX_VEL * DT, dist, 2 * AGENT_MAX_VEL * DT)
+    twoD_steps = np.array([i / dist * goal_vec for i in oneD_steps])
     n_steps = min(horizon, len(oneD_steps))
     steps[:n_steps, :] = twoD_steps[:n_steps]
     steps[n_steps:, :] += goal_vec
-    vels[n_steps:, :] = np.zeros(2)
+    vels_steps = int(dist / (AGENT_MAX_VEL * DT))
+    vels[vels_steps:, :] = np.zeros(2)
     return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
