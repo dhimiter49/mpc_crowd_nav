@@ -449,7 +449,7 @@ def qp_planning(reference_plan, reference_vels, agent_vel, old_plan, wall_dist):
     return np.array([acc[:N], acc[N:]]).T
 
 
-def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
+def qp_vel_planning(reference_plan, reference_vels, agent_vel, old_plan, wall_dist):
     """
     Velocity control.
     Optimize navigation by using a reference plan for the upcoming horizon.
@@ -457,6 +457,8 @@ def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
     Args:
         reference_plan (numpy.ndarray): vector of reference points with same size as the
             given horizon
+        reference_vels (numpy.ndarray): vector of reference velocities with same size as
+            the given horizon
         agent_vel (numpy.ndarray): vector representing the current agent velocity
     Return:
         (numpy.ndarray): array with two elements representing the new velocity to be
@@ -464,9 +466,15 @@ def qp_vel_planning(reference_plan, agent_vel, old_plan, wall_dist):
     """
     global opt_M
     if opt_M is None:
-        opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
-        opt_M = scipy.sparse.csc_matrix(opt_M)
-    opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
+        if reference_plan is not None:
+            opt_M = MV_xv.T @ MV_xv + 0.25 * np.eye(2 * (N - 1))
+            opt_M = scipy.sparse.csc_matrix(opt_M)
+        else:
+            opt_M = scipy.sparse.csc_matrix(np.eye(2 * (N - 1)))
+    if reference_plan is not None:
+        opt_V = (-reference_plan + 0.5 * DT * np.repeat(agent_vel, N)).T @ MV_xv
+    else:
+        opt_V = (-reference_vels).T
 
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
@@ -1299,7 +1307,17 @@ for t in [0.5 * i for i in range(1)]:
                     )
             else:
                 if "-v" in sys.argv:
-                    plan = qp_vel_planning(planned_steps, agent_vel, plan[1:], wall_dist)
+                    if "-vp" in sys.argv:
+                        planned_vels[:N] += agent_vel[0]
+                        planned_vels[N:] += agent_vel[1]
+                        planned_vels = np.delete(planned_vels, [N - 1, 2 * N - 1])
+                        plan = qp_vel_planning(
+                            None, planned_vels, agent_vel, plan[1:], wall_dist
+                        )
+                    else:
+                        plan = qp_vel_planning(
+                            planned_steps, None, agent_vel, plan[1:], wall_dist
+                        )
                 elif "-vp" in sys.argv:
                     plan = qp_planning(
                         None, planned_vels, agent_vel, plan[1:], wall_dist
