@@ -253,46 +253,45 @@ qp_problem = None
 opt_M = None
 
 
-def wall_constraints(const_M, const_b, wall_dist, agent_vel):
-    if wall_dist[0] < MAX_STOPPING_DIST * 0.6 or wall_dist[2] < MAX_STOPPING_DIST * 0.6:
-        poss = np.repeat(
-            np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
-                       wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
-        )
-        v_cb = poss - m_xv * np.repeat(agent_vel, horizon_)
-        const_M.append(m_xa)
-        const_b.append(v_cb)
-    if wall_dist[1] < MAX_STOPPING_DIST * 0.6 or wall_dist[3] < MAX_STOPPING_DIST * 0.6:
-        poss_ = np.repeat(
-            np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
-                       wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
-        )
-        v_cb = poss_ + m_xv * np.repeat(agent_vel, horizon_)
-        const_M.append(-m_xa)
-        const_b.append(v_cb)
+def lin_pos_constraint(const_M, const_b, line_eq, agent_vel):
+    """The linear position constraint is given by the equation ax+yb+c"""
+    for line in line_eq:
+        M_ca = np.hstack([np.eye(horizon_) * line[0], np.eye(horizon_) * line[1]])
+        v_c = -M_ca @ (m_xv * np.repeat(agent_vel, horizon_)) - line[2]
+
+        const_M.append(-M_ca @ m_xa)
+        const_b.append(-v_c)
 
 
 mv_xv = MV_bv if "-csc" in sys.argv or "-csmc" in sys.argv else MV_xv
 
 
-def vel_wall_constraints(const_M, const_b, wall_dist, agent_vel):
-    if wall_dist[0] < MAX_STOPPING_DIST * 0.6 or wall_dist[2] < MAX_STOPPING_DIST * 0.6:
-        poss = np.repeat(
-            np.array([[wall_dist[0] - 1.1 * PHYSICAL_SPACE,
-                       wall_dist[2] - 1.1 * PHYSICAL_SPACE]]), horizon_
-        )
-        v_cb = poss - 0.5 * DT * np.repeat(agent_vel, horizon_)
-        const_M.append(mv_xv)
-        const_b.append(v_cb)
+def vel_lin_pos_constraint(const_M, const_b, line_eq, agent_vel):
+    """The linear position constraint is given by the equation ax+yb+c"""
+    for line in line_eq:
+        M_ca = np.hstack([np.eye(horizon_) * line[0], np.eye(horizon_) * line[1]])
+        v_c = -M_ca @ (0.5 * DT * np.repeat(agent_vel, horizon_)) - line[2]
 
-    if wall_dist[1] < MAX_STOPPING_DIST * 0.6 or wall_dist[3] < MAX_STOPPING_DIST * 0.6:
-        poss_ = np.repeat(
-            np.array([[wall_dist[1] - 1.1 * PHYSICAL_SPACE,
-                       wall_dist[3] - 1.1 * PHYSICAL_SPACE]]), horizon_
-        )
-        v_cb = poss_ + 0.5 * DT * np.repeat(agent_vel, horizon_)
-        const_M.append(-mv_xv)
-        const_b.append(v_cb)
+        const_M.append(-M_ca @ mv_xv)
+        const_b.append(-v_c)
+
+
+def wall_eq(wall_dist):
+    """
+    Reutrns the equation for all four walls knowing that the index are:
+         2    To represent this in the format ax+by+c, a nd b are one of [0, 1, -1], e.g.
+       1   0  for index 0 in the graph to the left b=0 and a=-1 while for index 1, a=1
+         3    while c is the distance to the wall.
+    """
+    eqs = np.stack(
+        [
+            np.array([-1, 1, 0, 0]),
+            np.array([0, 0, -1, 1]),
+            wall_dist - 1.1 * PHYSICAL_SPACE
+        ],
+        axis=1
+    )
+    return eqs[wall_dist < MAX_STOPPING_DIST * 0.6]
 
 
 def crowd_const_mat(n_crowd):
@@ -356,7 +355,9 @@ def qp(goal_vec, agent_vel, old_plan, wall_dist):
 
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
-    wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
     idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
@@ -420,7 +421,9 @@ def qp_planning(reference_plan, reference_vels, agent_vel, old_plan, wall_dist):
 
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
-    wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
     idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
@@ -478,7 +481,9 @@ def qp_vel_planning(reference_plan, reference_vels, agent_vel, old_plan, wall_di
 
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
-    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        vel_lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
     idxs = relevant_idxs(agent_vel)
     const_M.append(VEL_VEL_MAT_CONST[idxs])
     const_b.append(VEL_VEL_VEC_CONST[idxs])
@@ -534,7 +539,9 @@ def qp_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wall_di
 
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
-    wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
     idxs = relevant_idxs(agent_vel)
     const_M.append(ACC_MAT_CONST)
     const_b.append(ACC_VEC_CONST)
@@ -588,7 +595,9 @@ def qp_vel_planning_vel(reference_plan, reference_vels, agent_vel, old_plan, wal
 
     const_M = []  # constraint matrices
     const_b = []  # constraint bounds
-    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        vel_lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
     idxs = relevant_idxs(agent_vel)
     const_M.append(VEL_VEL_MAT_CONST[idxs])
     const_b.append(VEL_VEL_VEC_CONST[idxs])
@@ -764,7 +773,9 @@ def qp_planning_col_avoid(
         const_M.append(M_cac)
         const_b.append(v_cb)
 
-    wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
 
     # passive safety
     # acc_b = np.ones(2 * N) * AGENT_MAX_ACC
@@ -859,7 +870,9 @@ def qp_vel_planning_col_avoid(
         const_M.append(M_cac)
         const_b.append(v_cb)
 
-    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        vel_lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
     idxs = relevant_idxs(agent_vel)
     const_M.append(VEL_VEL_MAT_CONST[idxs])
     const_b.append(VEL_VEL_VEC_CONST[idxs])
@@ -948,7 +961,9 @@ def qp_planning_casc_safety(
         const_M.append(M_cac)
         const_b.append(v_cb)
 
-    wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
 
     # passive safety
     # acc_b = np.ones(2 * M * N) * AGENT_MAX_ACC
@@ -1049,7 +1064,9 @@ def qp_vel_planning_casc_safety(
         const_M.append(M_cac)
         const_b.append(v_cb)
 
-    vel_wall_constraints(const_M, const_b, wall_dist, agent_vel)
+    wall_eqs = wall_eq(wall_dist)
+    if len(wall_eqs) != 0:
+        vel_lin_pos_constraint(const_M, const_b, wall_eqs, agent_vel)
     idxs = relevant_idxs(agent_vel)
     const_M.append(VEL_VEL_MAT_CONST[idxs])
     const_b.append(VEL_VEL_VEC_CONST[idxs])
