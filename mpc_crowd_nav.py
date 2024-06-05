@@ -1167,7 +1167,7 @@ def intersect(ls_a, ls_b):
 separating_planes = None
 velocity_str = "Vel" if "-v" in sys.argv else ""
 if intersect(["-c", "-csc"], sys.argv):
-    env = gym.make("fancy/CrowdNavigationStatic%s-v0" % velocity_str, width=40)
+    env = gym.make("fancy/CrowdNavigationStatic%s-v0" % velocity_str)
 elif intersect(["-mc", "-csmc"], sys.argv):
     env = gym.make("fancy/CrowdNavigation%s-v0" % velocity_str)
 else:
@@ -1340,7 +1340,9 @@ for t in [0.5 * i for i in range(1)]:
                         None, planned_vels, agent_vel, plan[1:], wall_dist
                     )
                 else:
-                    plan = qp_planning(planned_steps, None, agent_vel, plan[1:], wall_dist)
+                    plan = qp_planning(
+                        planned_steps, None, agent_vel, plan[1:], wall_dist
+                    )
         else:
             plan = qp(goal_vec, agent_vel, plan[1:], wall_dist)
 
