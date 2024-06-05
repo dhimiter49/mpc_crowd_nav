@@ -2,9 +2,9 @@ import numpy as np
 
 
 class Plan:
-    def __init__(self, dt: float, horizon: int, max_vel: float):
+    def __init__(self, horizon: int, dt: float, max_vel: float):
         self.N = horizon
-        self.self.DT = self.DT
+        self.DT = dt
         self.MAX_VEL = max_vel
 
 
@@ -26,7 +26,6 @@ class Plan:
         n_steps = min(self.N, len(oneD_steps))
         steps[:n_steps, :] = twoD_steps[:n_steps]
         steps[n_steps:, :] += goal
-        # steps *= 0
         vels_steps = int(dist / (self.MAX_VEL * self.DT))
         vels[vels_steps:, :] = np.zeros(2)
         return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])

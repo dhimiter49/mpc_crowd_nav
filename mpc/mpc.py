@@ -27,6 +27,9 @@ class AbstractMPC:
         self.POLYGON_ACC_LINES = gen_polygon(self.AGENT_MAX_ACC, self.circle_lin_sides)
         self.POLYGON_VEL_LINES = gen_polygon(self.AGENT_MAX_VEL, self.circle_lin_sides)
 
+        self.vel_coeff = 0.2
+        self.stability_coeff = 0.25
+
 
     def get_action(self, plan, obs):
         return self.__call__(plan, obs)
@@ -85,6 +88,8 @@ class MPC(AbstractMPC):
             agent_max_vel,
             agent_max_acc
         )
+        self.stability_coeff = 0.5
+
         self.vec_pos_vel = np.hstack([np.arange(1, self.N + 1)] * 2) * self.DT
 
         self.mat_pos_acc = scipy.linalg.toeplitz(
@@ -106,11 +111,12 @@ class MPC(AbstractMPC):
 
         self.mat_Q = scipy.sparse.csc_matrix(
             self.mat_pos_acc.T @ self.mat_pos_acc +
-            0.5 * self.mat_vel_acc.T @ self.mat_vel_acc
+            self.stability_coeff * self.mat_vel_acc.T @ self.mat_vel_acc
         )
         self.vec_p = lambda goal, vel: (
             (-np.repeat(goal, self.N) + self.vec_pos_vel * np.repeat(vel, self.N)).T @
-            self.mat_pos_acc + 0.5 * np.repeat(vel, self.N) @ self.mat_vel_acc
+            self.mat_pos_acc + self.stability_coeff * np.repeat(vel, self.N) @
+            self.mat_vel_acc
         )
 
         self.mat_vel_const, self.vec_vel_const = self.gen_vel_const()
@@ -181,7 +187,7 @@ class MPC(AbstractMPC):
 
         acc = solve_qp(
             self.mat_Q, self.vec_p(goal, vel),
-            # lb=-np.repeat(0.15, 42), ub=np.repeat(0.15, 42),
+            # lb=-acc_b, ub=acc_b,
             G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
             # A=term_const_M, b=term_const_b,
             solver="clarabel",

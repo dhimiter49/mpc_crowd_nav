@@ -11,7 +11,7 @@ from obs_handler import ObsHandler
 
 MPC_DICT = {
     "-s": "simple",
-    "-lr": "linear_plan",
+    "-lp": "linear_plan",
     "-v": "velocity_control",
     "-cs": "cascading"
 }
@@ -51,6 +51,7 @@ elif "-v" in sys.argv:
 else:
     mpc_type = MPC_DICT["-s"]
 
+planner = Plan(N, DT, env.AGENT_MAX_VEL)
 
 mpc = get_mpc(
     mpc_type,
@@ -65,8 +66,9 @@ obs = env.reset()
 plan = np.zeros((N, 2))
 for i in tqdm(range(40000)):
     obs = obs_handler(obs)
-    plan = mpc.get_action(None, obs)
-    obs, reward, terminated, truncated, info = env.step(plan[0])
+    plan = None if mpc_type == "simple" else planner.plan(obs[0])
+    control_plan = mpc.get_action(plan, obs)
+    obs, reward, terminated, truncated, info = env.step(control_plan[0])
     env.render() if render else None
     if terminated or truncated:
         obs = env.reset()
