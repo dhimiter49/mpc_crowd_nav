@@ -10,16 +10,22 @@ from obs_handler import ObsHandler
 
 
 MPC_DICT = {
-    "-s": "simple",
+    "-d": "simple",
     "-lp": "linear_plan",
     "-v": "velocity_control",
     "-cs": "cascading"
 }
 
 ENV_DICT = {
+    "-d": "Navigation",
     "-c": "CrowdNavigationStatic",
     "-mc": "CrowdNavigation",
-    "-s": "Navigation"
+}
+
+PLAN_DICT = {
+    "-lp": "Position",
+    "-lpv": "PositionVelocity",
+    "-vp": "Velocity",
 }
 
 
@@ -33,40 +39,56 @@ elif "-mc" in sys.argv or "-csmc" in sys.argv:
     mpc_type = MPC_DICT["-c"]
     env = gym.make("fancy/CrowdNavigation%s-v0" % velocity_str)
 else:
-    env_type = ENV_DICT["-s"]
-    mpc_type = MPC_DICT["-s"]
+    env_type = ENV_DICT["-d"]
+    mpc_type = MPC_DICT["-d"]
     env = gym.make("fancy/Navigation%s-v0" % velocity_str)
-obs_handler = ObsHandler(env_type, env.n_crowd)
+obs_handler = ObsHandler(env_type, env.get_wrapper_attr("n_crowd"))
 render = "-nr" not in sys.argv
 
 N = 21
 M = 20
 DT = env.dt
 
+mpc_kwargs = {}
+plan_type = ""
+if "-lpv" in sys.argv:
+    plan_type = PLAN_DICT["-lpv"]
+    mpc_kwargs["plan_type"] = plan_type
+elif "-vp" in sys.argv:
+    plan_type = PLAN_DICT["-vp"]
+    mpc_kwargs["plan_type"] = plan_type
+elif "-lp" in sys.argv:
+    plan_type = PLAN_DICT["-lp"]
+    mpc_kwargs["plan_type"] = plan_type
 
-if "-lp" in sys.argv:
+if "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
     mpc_type = MPC_DICT["-lp"]
 elif "-v" in sys.argv:
     mpc_type = MPC_DICT["-v"]
 else:
-    mpc_type = MPC_DICT["-s"]
+    mpc_type = MPC_DICT["-d"]
+planner = Plan(N, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
-planner = Plan(N, DT, env.AGENT_MAX_VEL)
 
 mpc = get_mpc(
     mpc_type,
     horizon=N,
     dt=DT,
-    physical_space=env.PHYSICAL_SPACE,
-    agent_max_vel=env.AGENT_MAX_VEL,
-    agent_max_acc=env.MAX_ACC,
+    physical_space=env.get_wrapper_attr("PHYSICAL_SPACE"),
+    agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
+    agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
+    n_crowd=env.get_wrapper_attr("n_crowd"),
+    **mpc_kwargs
 )
 
 obs = env.reset()
 plan = np.zeros((N, 2))
 for i in tqdm(range(40000)):
     obs = obs_handler(obs)
-    plan = None if mpc_type == "simple" else planner.plan(obs[0])
+    plan = planner.plan(obs)
+    None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
+        *planner.prepare_plot(plan, N)
+    )
     control_plan = mpc.get_action(plan, obs)
     obs, reward, terminated, truncated, info = env.step(control_plan[0])
     env.render() if render else None

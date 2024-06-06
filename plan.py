@@ -12,7 +12,8 @@ class Plan:
         return self.__call__(goal)
 
 
-    def __call__(self, goal):
+    def __call__(self, obs):
+        goal, agent_vel, _ = obs
         steps = np.zeros((self.N, 2))
         dist = np.linalg.norm(goal)
         vels = np.stack([(self.MAX_VEL) / dist * goal] * self.N).reshape(self.N, 2)
@@ -29,3 +30,14 @@ class Plan:
         vels_steps = int(dist / (self.MAX_VEL * self.DT))
         vels[vels_steps:, :] = np.zeros(2)
         return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
+
+
+    def prepare_plot(self, plan, N):
+        pos_plan, vel_plan = plan
+        steps = np.zeros((N, 2))
+        steps_vel = np.zeros((N, 2))
+        steps[:, 0] = pos_plan[:N]
+        steps[:, 1] = pos_plan[N:]
+        steps_vel[:, 0] = vel_plan[:N]
+        steps_vel[:, 1] = vel_plan[N:]
+        return steps - steps[0], steps_vel

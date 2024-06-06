@@ -13,6 +13,7 @@ class AbstractMPC:
         physical_space: float,
         agent_max_vel: float,
         agent_max_acc: float,
+        n_crowd: int = 0,
     ):
         self.N = horizon
         self.DT = dt
@@ -80,13 +81,15 @@ class MPC(AbstractMPC):
         physical_space: float,
         agent_max_vel: float,
         agent_max_acc: float,
+        n_crowd: int = 0,
     ):
         super().__init__(
             horizon,
             dt,
             physical_space,
             agent_max_vel,
-            agent_max_acc
+            agent_max_acc,
+            n_crowd,
         )
         self.stability_coeff = 0.5
 
@@ -113,7 +116,7 @@ class MPC(AbstractMPC):
             self.mat_pos_acc.T @ self.mat_pos_acc +
             self.stability_coeff * self.mat_vel_acc.T @ self.mat_vel_acc
         )
-        self.vec_p = lambda goal, vel: (
+        self.vec_p = lambda goal, _1, _2, vel: (
             (-np.repeat(goal, self.N) + self.vec_pos_vel * np.repeat(vel, self.N)).T @
             self.mat_pos_acc + self.stability_coeff * np.repeat(vel, self.N) @
             self.mat_vel_acc
@@ -170,8 +173,11 @@ class MPC(AbstractMPC):
             const_b.append(-limit)
 
 
-    def __call__(self, _, obs):
+    def __call__(self, plan, obs):
+        pos_plan, vel_plan = plan
         goal, vel, walls = obs
+        vel_plan[:self.N] -= vel[0]
+        vel_plan[self.N:] -= vel[1]
 
         const_M, const_b = [], []
         wall_eqs = self.wall_eq(walls)
@@ -183,13 +189,13 @@ class MPC(AbstractMPC):
         const_M.append(self.mat_vel_const[idxs])
         const_b.append(self.vec_vel_const(vel, idxs))
 
-        # term_const_M, term_const_b = self.terminal_const(vel)
+        term_const_M, term_const_b = self.terminal_const(vel)
 
         acc = solve_qp(
-            self.mat_Q, self.vec_p(goal, vel),
+            self.mat_Q, self.vec_p(goal, pos_plan, vel_plan, vel),
             # lb=-acc_b, ub=acc_b,
             G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
-            # A=term_const_M, b=term_const_b,
+            A=term_const_M, b=term_const_b,
             solver="clarabel",
             tol_gap_abs=5e-5,
             tol_gap_rel=5e-5,
