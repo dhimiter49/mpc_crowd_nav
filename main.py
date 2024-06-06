@@ -61,10 +61,10 @@ elif "-lp" in sys.argv:
     plan_type = PLAN_DICT["-lp"]
     mpc_kwargs["plan_type"] = plan_type
 
-if "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
-    mpc_type = MPC_DICT["-lp"]
-elif "-v" in sys.argv:
+if "-v" in sys.argv:
     mpc_type = MPC_DICT["-v"]
+elif "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
+    mpc_type = MPC_DICT["-lp"]
 else:
     mpc_type = MPC_DICT["-d"]
 planner = Plan(N, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))

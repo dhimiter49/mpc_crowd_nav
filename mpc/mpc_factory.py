@@ -11,6 +11,8 @@ def get_mpc(mpc_type: str, **kwargs):
         return MPCAcc(**kwargs)
     elif mpc_type == "linear_plan":
         return MPCLinear(**kwargs)
+    elif mpc_type == "velocity_control":
+        return MPCVel(**kwargs)
     else:
         raise ValueError(f"Specified mpc type {mpc_type} not supported, "
                          f"please choose one of {ALL_TYPES}.")

@@ -111,16 +111,6 @@ class MPCAcc(AbstractMPC):
             const_b.append(vec_crowd)
 
 
-    def calculate_crowd_poss(self, crowd_poss, crowd_vels):
-        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
-        crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
-        return np.stack([crowd_poss] * self.N) + np.einsum(
-            'ijk,i->ijk',
-            np.stack([crowd_vels] * self.N, 0) * self.DT,
-            np.arange(0, self.N)
-        )
-
-
     def terminal_const(self, vel):
         return self.mat_vel_acc[[self.N - 1, 2 * self.N - 1], :], -vel
 

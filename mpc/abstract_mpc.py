@@ -31,6 +31,7 @@ class AbstractMPC:
 
         self.vel_coeff = 0.2
         self.stability_coeff = 0.25
+        self.last_planned_traj = np.zeros((self.N, 2))
 
 
     def get_action(self, plan, obs):
@@ -50,8 +51,8 @@ class AbstractMPC:
             self.lin_pos_constraint(const_M, const_b, wall_eqs, vel)
         idxs = self.relevant_idxs(vel)
         const_M.append(self.mat_acc_const)
-        const_b.append(self.vec_acc_const)
-        const_M.append(self.mat_vel_const[idxs])
+        const_b.append(self.vec_acc_const(vel))
+        const_M.append(self.mat_vel_const(idxs))
         const_b.append(self.vec_vel_const(vel, idxs))
         if self.n_crowd > 0:
             crowd_poss = self.calculate_crowd_poss(
@@ -73,6 +74,16 @@ class AbstractMPC:
             tol_infeas_abs=5e-5,
             tol_infeas_rel=5e-5,
             tol_ktratio=1e-4
+        )
+
+
+    def calculate_crowd_poss(self, crowd_poss, crowd_vels):
+        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
+        return np.stack([crowd_poss] * self.N) + np.einsum(
+            'ijk,i->ijk',
+            np.stack([crowd_vels] * self.N, 0) * self.DT,
+            np.arange(0, self.N)
         )
 
 
