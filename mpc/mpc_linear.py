@@ -1,10 +1,9 @@
 import numpy as np
-from qpsolvers import solve_qp
-from mpc.mpc import MPC
+from mpc.mpc_acc import MPCAcc
 import scipy
 
 
-class MPCLinear(MPC):
+class MPCLinear(MPCAcc):
     def __init__(
         self,
         horizon: int,

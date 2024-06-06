@@ -1,4 +1,5 @@
-from mpc.mpc import MPC
+from mpc.mpc_acc import MPCAcc
+from mpc.mpc_vel import MPCVel
 from mpc.mpc_linear import MPCLinear
 
 ALL_TYPES = ["simple", "linear_plan", "velocity_control"]
@@ -7,7 +8,7 @@ ALL_TYPES = ["simple", "linear_plan", "velocity_control"]
 def get_mpc(mpc_type: str, **kwargs):
     mpc_type = mpc_type.lower()
     if mpc_type == "simple":
-        return MPC(**kwargs)
+        return MPCAcc(**kwargs)
     elif mpc_type == "linear_plan":
         return MPCLinear(**kwargs)
     else:
