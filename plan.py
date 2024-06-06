@@ -13,7 +13,7 @@ class Plan:
 
 
     def __call__(self, obs):
-        goal, agent_vel, _ = obs
+        goal, agent_vel, _, _, _ = obs
         steps = np.zeros((self.N, 2))
         dist = np.linalg.norm(goal)
         vels = np.stack([(self.MAX_VEL) / dist * goal] * self.N).reshape(self.N, 2)

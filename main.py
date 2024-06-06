@@ -32,11 +32,11 @@ PLAN_DICT = {
 velocity_str = "Vel" if "-v" in sys.argv else ""
 if "-c" in sys.argv or "-csc" in sys.argv:
     env_type = ENV_DICT["-c"]
-    mpc_type = MPC_DICT["-c"]
+    mpc_type = MPC_DICT["-lp"]
     env = gym.make("fancy/CrowdNavigationStatic%s-v0" % velocity_str)
 elif "-mc" in sys.argv or "-csmc" in sys.argv:
     env_type = ENV_DICT["-mc"]
-    mpc_type = MPC_DICT["-c"]
+    mpc_type = MPC_DICT["-lp"]
     env = gym.make("fancy/CrowdNavigation%s-v0" % velocity_str)
 else:
     env_type = ENV_DICT["-d"]
@@ -89,6 +89,7 @@ for i in tqdm(range(40000)):
     None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
         *planner.prepare_plot(plan, N)
     )
+    env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     control_plan = mpc.get_action(plan, obs)
     obs, reward, terminated, truncated, info = env.step(control_plan[0])
     env.render() if render else None

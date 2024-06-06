@@ -14,10 +14,11 @@ class ObsHandler:
         if self.env_type == "CrowdNavigationStatic":
             # goal, crowd, agent velocity, walls
             return (
-                obs[0][: 2],
-                obs[0][2:self.n_crowd + 2],
-                obs[0][self.n_crowd + 2:self.n_crowd + 4],
-                obs[0][self.n_crowd + 4:]
+                obs[:2],
+                obs[2:self.n_crowd + 2],
+                obs[self.n_crowd + 2:self.n_crowd + 4],
+                None,
+                obs[self.n_crowd + 4:]
             )
         elif self.env_type == "CrowdNavigation":
             # goal, crowd, agent velocity, crowd velocities, walls
@@ -30,4 +31,4 @@ class ObsHandler:
             )
         else:
             # goal, agent velocity, walls
-            return obs[:2], obs[2:4], obs[-4:]
+            return obs[:2], None, obs[2:4], None, obs[-4:]

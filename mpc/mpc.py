@@ -23,6 +23,7 @@ class AbstractMPC:
         self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
         self.MAX_DIST_STOP = self.MAX_TIME_STOP ** 2 * self.AGENT_MAX_ACC * 0.5
         self.MAX_DIST_STOP_CROWD = 2 * self.MAX_DIST_STOP
+        self.n_crowd = n_crowd
 
         self.circle_lin_sides = 8
         self.POLYGON_ACC_LINES = gen_polygon(self.AGENT_MAX_ACC, self.circle_lin_sides)
@@ -124,6 +125,7 @@ class MPC(AbstractMPC):
 
         self.mat_vel_const, self.vec_vel_const = self.gen_vel_const()
         self.mat_acc_const, self.vec_acc_const = self.gen_acc_const()
+        self.last_planned_traj = np.zeros((self.N, 2))
 
 
     def gen_vel_const(self):
@@ -159,6 +161,36 @@ class MPC(AbstractMPC):
         return (M_a_.T * sgn_acc).T, sgn_acc * b_a_
 
 
+    def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
+        for member in range(self.n_crowd):
+            poss = crowd_poss[:, member, :]
+            dist = np.linalg.norm(poss, axis=-1)
+            vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
+            angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
+            if (np.all(dist > self.MAX_DIST_STOP_CROWD) or
+               (np.all(dist > self.MAX_DIST_STOP_CROWD / 2) and np.all(angle))):
+                continue
+            mat_crowd = np.hstack([
+                np.eye(self.N) * vec[:, 0], np.eye(self.N) * vec[:, 1]
+            ])
+            vec_crowd = mat_crowd @ (
+                -poss.flatten("F") + self.vec_pos_vel * np.repeat(agent_vel, self.N)
+            ) - np.array([4 * self.PHYSICAL_SPACE] * self.N)
+            mat_crowd_control = -mat_crowd @ self.mat_pos_acc
+            const_M.append(mat_crowd_control)
+            const_b.append(vec_crowd)
+
+
+    def calculate_crowd_poss(self, crowd_poss, crowd_vels):
+        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
+        return np.stack([crowd_poss] * self.N) + np.einsum(
+            'ijk,i->ijk',
+            np.stack([crowd_vels] * self.N, 0) * self.DT,
+            np.arange(0, self.N)
+        )
+
+
     def terminal_const(self, vel):
         return self.mat_vel_acc[[self.N - 1, 2 * self.N - 1], :], -vel
 
@@ -175,10 +207,11 @@ class MPC(AbstractMPC):
 
     def __call__(self, plan, obs):
         pos_plan, vel_plan = plan
-        goal, vel, walls = obs
+        goal, crowd_poss, vel, crowd_vels, walls = obs
         vel_plan[:self.N] -= vel[0]
         vel_plan[self.N:] -= vel[1]
 
+        # Constraints
         const_M, const_b = [], []
         wall_eqs = self.wall_eq(walls)
         if len(wall_eqs) != 0:
@@ -188,6 +221,11 @@ class MPC(AbstractMPC):
         const_b.append(self.vec_acc_const)
         const_M.append(self.mat_vel_const[idxs])
         const_b.append(self.vec_vel_const(vel, idxs))
+        if self.n_crowd > 0:
+            crowd_poss = self.calculate_crowd_poss(
+                crowd_poss.reshape(self.n_crowd, 2), crowd_vels
+            )
+            self.gen_crowd_const(const_M, const_b, crowd_poss, vel)
 
         term_const_M, term_const_b = self.terminal_const(vel)
 
@@ -204,4 +242,13 @@ class MPC(AbstractMPC):
             tol_infeas_rel=5e-5,
             tol_ktratio=1e-4
         )
-        return np.array([acc[:self.N], acc[self.N:]]).T
+
+        if acc is None:
+            print("Executing last computed braking trajectory!")
+            acc = np.zeros(2 * self.N)
+            acc[0:self.N - 1] = self.last_planned_traj[1:, 0]
+            acc[self.N:2 * self.N - 1] = self.last_planned_traj[1:, 1]
+
+        action = np.array([acc[:self.N], acc[self.N:]]).T
+        self.last_planned_traj = action
+        return action
