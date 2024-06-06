@@ -24,6 +24,7 @@ class MPCVel(AbstractMPC):
             n_crowd,
         )
         self.stability_coeff = 0.25
+        self.plan_type = plan_type
 
         self.mat_pos_vel = scipy.linalg.toeplitz(
             np.ones(self.N), np.zeros(self.N)
@@ -45,12 +46,37 @@ class MPCVel(AbstractMPC):
         ]).reshape(2 * self.N, 2 * (self.N - 1))
 
 
-        self.mat_Q = scipy.sparse.csc_matrix(
-            self.mat_pos_vel.T @ self.mat_pos_vel +
-            self.stability_coeff * np.eye(2 * (self.N - 1))
-        )
-        self.vec_p = lambda _1, plan, _2, vel: \
-            (-plan + 0.5 * self.DT * np.repeat(vel, self.N)).T @ self.mat_pos_vel
+        if self.plan_type == "Position":
+            self.mat_Q = scipy.sparse.csc_matrix(
+                self.mat_pos_vel.T @ self.mat_pos_vel +
+                self.stability_coeff * np.eye(2 * (self.N - 1))
+            )
+            self.vec_p = lambda _1, plan, _2, vel: \
+                (-plan + 0.5 * self.DT * np.repeat(vel, self.N)).T @ self.mat_pos_vel
+        elif self.plan_type == "Velocity":
+            self.mat_Q = scipy.sparse.csc_matrix(np.eye(2 * (self.N - 1)))
+
+
+            def vec_p(_1, _2, plan_vels, vel):
+                plan_vels[:self.N] += vel[0]
+                plan_vels[self.N:] += vel[1]
+                plan_vels = np.delete(plan_vels, [self.N - 1, 2 * self.N - 1])
+                return -plan_vels.T
+            self.vec_p = vec_p
+        elif self.plan_type == "PositionVelocity":
+            self.mat_Q = scipy.sparse.csc_matrix(
+                self.mat_pos_vel.T @ self.mat_pos_vel +
+                self.stability_coeff * np.eye(2 * (self.N - 1))
+            )
+
+
+            def vec_p(_, plan_pos, plan_vels, vel):
+                plan_vels[:self.N] += vel[0]
+                plan_vels[self.N:] += vel[1]
+                plan_vels = np.delete(plan_vels, [self.N - 1, 2 * self.N - 1])
+                return (-plan_pos + 0.5 * self.DT * np.repeat(vel, self.N)).T @ \
+                    self.mat_pos_vel - self.stability_coeff * plan_vels.T
+            self.vec_p = vec_p
 
         self.mat_vel_const, self.vec_vel_const = self.gen_vel_const()
         self.mat_acc_const, self.vec_acc_const = self.gen_acc_const()

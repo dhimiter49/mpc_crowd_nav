@@ -47,7 +47,7 @@ render = "-nr" not in sys.argv
 
 N = 21
 M = 20
-DT = env.dt
+DT = env.unwrapped.dt
 
 mpc_kwargs = {}
 plan_type = ""

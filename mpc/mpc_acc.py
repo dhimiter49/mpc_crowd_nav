@@ -73,7 +73,11 @@ class MPCAcc(AbstractMPC):
             idxs = np.arange(len(sgn_vel)) if idxs is None else idxs
             return sgn_vel[idxs] * (b_v_[idxs] - M_v_[idxs] @ np.repeat(vel, self.N))
 
-        return ((M_v_ @ self.mat_vel_acc).T * sgn_vel).T, vel_vec_const
+
+        def vel_mat_const(idxs):
+            return ((M_v_ @ self.mat_vel_acc).T * sgn_vel).T[idxs]
+
+        return vel_mat_const, vel_vec_const
 
 
     def gen_acc_const(self):
@@ -88,7 +92,10 @@ class MPCAcc(AbstractMPC):
         sgn_acc = np.repeat(sgn_acc, self.N)
         b_a_ = np.repeat(self.POLYGON_ACC_LINES[:, 1], self.N)
 
-        return (M_a_.T * sgn_acc).T, sgn_acc * b_a_
+
+        def vec_const(_):
+            return sgn_acc * b_a_
+        return (M_a_.T * sgn_acc).T, vec_const
 
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
