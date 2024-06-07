@@ -132,10 +132,7 @@ class AbstractMPC:
             (angle_idx + 1) % self.circle_lin_sides,
             (angle_idx - 1) % self.circle_lin_sides
         ]
-        idxs = np.hstack(list(idxs) * self.N) + np.repeat(
-            np.arange(0, self.N * self.circle_lin_sides, self.circle_lin_sides), 3
-        )
-        return np.array(idxs, dtype=int)
+        return idxs
 
 
     def ignore_crowd_member(self, crowd_poss, member, agent_vel):
@@ -155,3 +152,37 @@ class AbstractMPC:
             np.all(dist > self.MAX_DIST_STOP_CROWD) or
             (np.all(dist > self.MAX_DIST_STOP_CROWD / 2) and np.all(angle))
         )
+
+
+    def gen_vel_param(self, horizon):
+        """
+        Parameters, matrix vector and sign that represent the lienear constraint for
+        velocity.
+        """
+        M_v_ = np.vstack([np.eye(horizon) * -line[0] for line in self.POLYGON_VEL_LINES])
+        M_v_ = np.hstack(
+            [M_v_, np.vstack([np.eye(horizon)] * len(self.POLYGON_VEL_LINES))]
+        )
+        sgn_vel = np.ones(len(self.POLYGON_VEL_LINES))
+        sgn_vel[len(self.POLYGON_VEL_LINES) // 2:] = -1
+        sgn_vel = np.repeat(sgn_vel, horizon)
+        b_v_ = np.repeat(self.POLYGON_VEL_LINES[:, 1], horizon)
+
+        return M_v_, b_v_, sgn_vel
+
+
+    def gen_acc_param(self, horizon):
+        """
+        Parameters, matrix vector and sign that represent the lienear constraint for
+        acceleration.
+        """
+        M_a_ = np.vstack([np.eye(horizon) * -line[0] for line in self.POLYGON_ACC_LINES])
+        M_a_ = np.hstack(
+            [M_a_, np.vstack([np.eye(horizon)] * len(self.POLYGON_ACC_LINES))]
+        )
+        sgn_acc = np.ones(len(self.POLYGON_ACC_LINES))
+        sgn_acc[len(self.POLYGON_ACC_LINES) // 2:] = -1
+        sgn_acc = np.repeat(sgn_acc, horizon)
+        b_a_ = np.repeat(self.POLYGON_ACC_LINES[:, 1], horizon)
+
+        return M_a_, b_a_, sgn_acc

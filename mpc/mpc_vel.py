@@ -81,21 +81,12 @@ class MPCVel(AbstractMPC):
                     self.mat_pos_vel - self.stability_coeff * plan_vels.T
             self.vec_p = vec_p
 
-        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const()
-        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const()
+        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N - 1)
+        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
 
 
-    def gen_vel_const(self):
-        M_v_ = np.vstack([
-            np.eye(self.N - 1) * -line[0] for line in self.POLYGON_VEL_LINES
-        ])
-        M_v_ = np.hstack(
-            [M_v_, np.vstack([np.eye(self.N - 1)] * len(self.POLYGON_VEL_LINES))]
-        )
-        sgn_vel = np.ones(len(self.POLYGON_VEL_LINES))
-        sgn_vel[len(self.POLYGON_VEL_LINES) // 2:] = -1
-        sgn_vel = np.repeat(sgn_vel, self.N - 1)
-        b_v_ = np.repeat(self.POLYGON_VEL_LINES[:, 1], self.N - 1)
+    def gen_vel_const(self, horizon):
+        M_v_, b_v_, sgn_vel = super().gen_vel_param(horizon)
 
 
         def mat_vel_const(idxs):
@@ -109,22 +100,13 @@ class MPCVel(AbstractMPC):
         return mat_vel_const, vec_vel_const
 
 
-    def gen_acc_const(self):
-        # acceleration/control constraint using the inner polygon of a circle with radius
-        # AGENT_MAX_ACC
-        M_a_ = np.vstack([np.eye(self.N) * -line[0] for line in self.POLYGON_ACC_LINES])
-        M_a_ = np.hstack(
-            [M_a_, np.vstack([np.eye(self.N)] * len(self.POLYGON_ACC_LINES))]
-        )
-        sgn_acc = np.ones(len(self.POLYGON_ACC_LINES))
-        sgn_acc[len(self.POLYGON_ACC_LINES) // 2:] = -1
-        sgn_acc = np.repeat(sgn_acc, self.N)
-        b_a_ = np.repeat(self.POLYGON_ACC_LINES[:, 1], self.N)
+    def gen_acc_const(self, horizon):
+        M_a_, b_a_, sgn_acc = super().gen_vel_param(horizon)
 
 
         def acc_vec_const(agent_vel):
-            agent_vel_ = np.zeros(2 * (self.N))
-            agent_vel_[0], agent_vel_[self.N] = agent_vel
+            agent_vel_ = np.zeros(2 * (horizon))
+            agent_vel_[0], agent_vel_[horizon] = agent_vel
             return sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
 
         return ((M_a_ @ self.mat_acc_vel).T * sgn_acc).T, acc_vec_const
@@ -162,14 +144,7 @@ class MPCVel(AbstractMPC):
 
 
     def relevant_idxs(self, vel):
-        angle = np.arctan2(vel[1], vel[0])
-        angle = 2 * np.pi + angle if angle < 0 else angle
-        angle_idx = angle // (2 * np.pi / self.circle_lin_sides)
-        idxs = [
-            angle_idx,
-            (angle_idx + 1) % self.circle_lin_sides,
-            (angle_idx - 1) % self.circle_lin_sides
-        ]
+        idxs = super().relevant_idxs(vel)
         idxs = np.hstack(list(idxs) * (self.N - 1)) + np.repeat(
             np.arange(0, (self.N - 1) * self.circle_lin_sides, self.circle_lin_sides), 3
         )

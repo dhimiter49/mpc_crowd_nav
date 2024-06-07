@@ -57,25 +57,17 @@ class MPCAcc(AbstractMPC):
             self.mat_vel_acc
         )
 
-        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const()
-        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const()
-        self.last_planned_traj = np.zeros((self.N, 2))
+        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N)
+        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
 
 
-    def gen_vel_const(self):
-        M_v_ = np.vstack([np.eye(self.N) * -line[0] for line in self.POLYGON_VEL_LINES])
-        M_v_ = np.hstack(
-            [M_v_, np.vstack([np.eye(self.N)] * len(self.POLYGON_VEL_LINES))]
-        )
-        sgn_vel = np.ones(len(self.POLYGON_VEL_LINES))
-        sgn_vel[len(self.POLYGON_VEL_LINES) // 2:] = -1
-        sgn_vel = np.repeat(sgn_vel, self.N)
-        b_v_ = np.repeat(self.POLYGON_VEL_LINES[:, 1], self.N)
+    def gen_vel_const(self, horizon):
+        M_v_, b_v_, sgn_vel = super().gen_vel_param(horizon)
 
 
         def vel_vec_const(vel, idxs=None):
             idxs = np.arange(len(sgn_vel)) if idxs is None else idxs
-            return sgn_vel[idxs] * (b_v_[idxs] - M_v_[idxs] @ np.repeat(vel, self.N))
+            return sgn_vel[idxs] * (b_v_[idxs] - M_v_[idxs] @ np.repeat(vel, horizon))
 
 
         def vel_mat_const(idxs):
@@ -84,17 +76,8 @@ class MPCAcc(AbstractMPC):
         return vel_mat_const, vel_vec_const
 
 
-    def gen_acc_const(self):
-        # acceleration/control constraint using the inner polygon of a circle with radius
-        # AGENT_MAX_ACC
-        M_a_ = np.vstack([np.eye(self.N) * -line[0] for line in self.POLYGON_ACC_LINES])
-        M_a_ = np.hstack(
-            [M_a_, np.vstack([np.eye(self.N)] * len(self.POLYGON_ACC_LINES))]
-        )
-        sgn_acc = np.ones(len(self.POLYGON_ACC_LINES))
-        sgn_acc[len(self.POLYGON_ACC_LINES) // 2:] = -1
-        sgn_acc = np.repeat(sgn_acc, self.N)
-        b_a_ = np.repeat(self.POLYGON_ACC_LINES[:, 1], self.N)
+    def gen_acc_const(self, horizon):
+        M_a_, b_a_, sgn_acc = super().gen_acc_param(horizon)
 
 
         def vec_const(_):
@@ -102,20 +85,31 @@ class MPCAcc(AbstractMPC):
         return (M_a_.T * sgn_acc).T, vec_const
 
 
-    def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
+    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel):
         for member in range(self.n_crowd):
-            poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
+            poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
             if ignore:
                 continue
             mat_crowd = np.hstack([
                 np.eye(self.N) * vec[:, 0], np.eye(self.N) * vec[:, 1]
             ])
             vec_crowd = mat_crowd @ (
-                -poss.flatten("F") + self.vec_pos_vel * np.repeat(agent_vel, self.N)
+                -poss.flatten("F") + self.vec_pos_vel * np.repeat(vel, self.N)
             ) - np.array([4 * self.PHYSICAL_SPACE] * self.N)
             mat_crowd_control = -mat_crowd @ self.mat_pos_acc
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
+
+
+    def relevant_idxs(self, vel):
+        """
+        Shape relevant indexes according to problem.
+        """
+        idxs = super().relevant_idxs(vel)
+        idxs = np.hstack(list(idxs) * self.N) + np.repeat(
+            np.arange(0, self.N * self.circle_lin_sides, self.circle_lin_sides), 3
+        )
+        return np.array(idxs, dtype=int)
 
 
     def terminal_const(self, vel):
