@@ -6,6 +6,10 @@ from mpc.utils import gen_polygon
 
 
 class AbstractMPC:
+    """
+    Abstract MPC for crowd navigation. Solves a qp problem by using the defined quadratic
+    matrices and constraints in the child classes.
+    """
     def __init__(
         self,
         horizon: int,
@@ -78,6 +82,12 @@ class AbstractMPC:
 
 
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
+        """
+        Based on the current crowd positions and constant velocities it is possible to
+        compute all future positions.
+
+        Does not support varying future velocities.
+        """
         crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
         crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         return np.stack([crowd_poss] * self.N) + np.einsum(
@@ -106,6 +116,14 @@ class AbstractMPC:
 
 
     def relevant_idxs(self, vel):
+        """
+        Relevant indexes when computing acceleration and velocity constraints. Based on
+        the direction of the current velocity it is unecessary to add constraints to the
+        qp-problem that address opposite directions. The relative indexes are defined as
+        the three regions in which the current velocity falls in. In cases where the
+        linearization of the velocity and acceleration constraint is split into 8 parts
+        this means (360 / 8) * 3 = 135 degress are covered.
+        """
         angle = np.arctan2(vel[1], vel[0])
         angle = 2 * np.pi + angle if angle < 0 else angle
         angle_idx = angle // (2 * np.pi / self.circle_lin_sides)

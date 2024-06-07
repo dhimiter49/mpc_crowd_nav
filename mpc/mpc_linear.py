@@ -4,6 +4,9 @@ import scipy
 
 
 class MPCLinear(MPCAcc):
+    """
+    Extended acceleration control MPC to use (linear) plans.
+    """
     def __init__(
         self,
         horizon: int,

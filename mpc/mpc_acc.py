@@ -5,6 +5,10 @@ from mpc.abstract_mpc import AbstractMPC
 
 
 class MPCAcc(AbstractMPC):
+    """
+    Using acceleration control. The objective is implemented directly as the position of
+    the goal.
+    """
     def __init__(
         self,
         horizon: int,

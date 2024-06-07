@@ -5,6 +5,9 @@ from mpc.abstract_mpc import AbstractMPC
 
 
 class MPCVel(AbstractMPC):
+    """
+    Using velocity control. Directly implemens a (linear) planner.
+    """
     def __init__(
         self,
         horizon: int,
