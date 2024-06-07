@@ -87,6 +87,7 @@ mpc = get_mpc(
 
 obs = env.reset()
 plan = np.zeros((N, 2))
+returns, ep_return, vels, action = [], 0, [], [0, 0]
 for i in tqdm(range(40000)):
     obs = obs_handler(obs)
     plan = planner.plan(obs)
@@ -96,6 +97,10 @@ for i in tqdm(range(40000)):
     env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     control_plan = mpc.get_action(plan, obs)
     obs, reward, terminated, truncated, info = env.step(control_plan[0])
+    ep_return += reward
     env.render() if render else None
     if terminated or truncated:
         obs = env.reset()
+        returns.append(ep_return)
+        ep_return = 0
+print("Mean: ", np.mean(returns))
