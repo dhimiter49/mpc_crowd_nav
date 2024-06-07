@@ -13,7 +13,8 @@ MPC_DICT = {
     "-d": "simple",
     "-lp": "linear_plan",
     "-v": "velocity_control",
-    "-cs": "cascading"
+    "-cs": "cascading",
+    "-vcs": "velocity_control_cascading"
 }
 
 ENV_DICT = {
@@ -62,7 +63,10 @@ elif "-lp" in sys.argv:
     mpc_kwargs["plan_type"] = plan_type
 
 plan_steps = N
-if "-v" in sys.argv:
+if "-v" in sys.argv and "-cs" in sys.argv:
+    mpc_type = MPC_DICT["-vcs"]
+    plan_steps = M
+elif "-v" in sys.argv:
     mpc_type = MPC_DICT["-v"]
 elif "-cs" in sys.argv:
     mpc_type = MPC_DICT["-cs"]
