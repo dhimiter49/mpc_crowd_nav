@@ -104,12 +104,8 @@ class MPCAcc(AbstractMPC):
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
         for member in range(self.n_crowd):
-            poss = crowd_poss[:, member, :]
-            dist = np.linalg.norm(poss, axis=-1)
-            vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
-            angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
-            if (np.all(dist > self.MAX_DIST_STOP_CROWD) or
-               (np.all(dist > self.MAX_DIST_STOP_CROWD / 2) and np.all(angle))):
+            poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
+            if ignore:
                 continue
             mat_crowd = np.hstack([
                 np.eye(self.N) * vec[:, 0], np.eye(self.N) * vec[:, 1]

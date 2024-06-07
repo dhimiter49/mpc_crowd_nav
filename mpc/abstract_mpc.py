@@ -136,3 +136,22 @@ class AbstractMPC:
             np.arange(0, self.N * self.circle_lin_sides, self.circle_lin_sides), 3
         )
         return np.array(idxs, dtype=int)
+
+
+    def ignore_crowd_member(self, crowd_poss, member, agent_vel):
+        """
+        Ignore crowd members that are too far or in antoher direction.
+
+        Return:
+            np.ndarray: relative position of member
+            np.ndarray: direction vector of member
+            bool: ignore flag
+        """
+        poss = crowd_poss[:, member, :]
+        vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
+        dist = np.linalg.norm(poss, axis=-1)
+        angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
+        return poss, vec, (
+            np.all(dist > self.MAX_DIST_STOP_CROWD) or
+            (np.all(dist > self.MAX_DIST_STOP_CROWD / 2) and np.all(angle))
+        )

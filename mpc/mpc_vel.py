@@ -132,12 +132,8 @@ class MPCVel(AbstractMPC):
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
         for member in range(self.n_crowd):
-            poss = crowd_poss[:, member, :]
-            dist = np.linalg.norm(poss, axis=-1)
-            vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
-            angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
-            if (np.all(dist > self.MAX_DIST_STOP_CROWD) or
-               (np.all(dist > self.MAX_DIST_STOP_CROWD / 2) and np.all(angle))):
+            poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
+            if ignore:
                 continue
             mat_crowd = np.hstack([
                 np.eye(self.N) * vec[:, 0], np.eye(self.N) * vec[:, 1]
@@ -184,9 +180,7 @@ class MPCVel(AbstractMPC):
         vel = super().__call__(plan, obs)
         if vel is None:
             print("Executing last computed braking trajectory!")
-            vel = np.zeros(2 * self.N)
-            vel[0:self.N - 1] = self.last_planned_traj[1:, 0]
-            vel[self.N:2 * self.N - 1] = self.last_planned_traj[1:, 1]
+            vel = self.last_planned_traj[1:].flatten("F")
 
         action = np.array([
             np.append(vel[:self.N - 1], 0), np.append(vel[self.N - 1:], 0)
