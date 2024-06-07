@@ -101,7 +101,7 @@ class MPCAcc(AbstractMPC):
             const_b.append(vec_crowd)
 
 
-    def relevant_idxs(self, vel):
+    def find_relevant_idxs(self, vel):
         """
         Shape relevant indexes according to problem.
         """
@@ -127,7 +127,7 @@ class MPCAcc(AbstractMPC):
 
 
     def __call__(self, plan, obs):
-        acc = super().__call__(plan, obs)
+        acc = self.core_mpc(plan, obs)
         if acc is None:
             print("Executing last computed braking trajectory!")
             acc = np.zeros(2 * self.N)

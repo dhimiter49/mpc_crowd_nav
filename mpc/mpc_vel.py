@@ -143,7 +143,7 @@ class MPCVel(AbstractMPC):
             const_b.append(-limit)
 
 
-    def relevant_idxs(self, vel):
+    def find_relevant_idxs(self, vel):
         idxs = super().relevant_idxs(vel)
         idxs = np.hstack(list(idxs) * (self.N - 1)) + np.repeat(
             np.arange(0, (self.N - 1) * self.circle_lin_sides, self.circle_lin_sides), 3
@@ -152,7 +152,7 @@ class MPCVel(AbstractMPC):
 
 
     def __call__(self, plan, obs):
-        vel = super().__call__(plan, obs)
+        vel = self.core_mpc(plan, obs)
         if vel is None:
             print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")

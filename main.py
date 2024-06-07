@@ -61,13 +61,17 @@ elif "-lp" in sys.argv:
     plan_type = PLAN_DICT["-lp"]
     mpc_kwargs["plan_type"] = plan_type
 
+plan_steps = N
 if "-v" in sys.argv:
     mpc_type = MPC_DICT["-v"]
+elif "-cs" in sys.argv:
+    mpc_type = MPC_DICT["-cs"]
+    plan_steps = M
 elif "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
     mpc_type = MPC_DICT["-lp"]
 else:
     mpc_type = MPC_DICT["-d"]
-planner = Plan(N, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
+planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
 
 mpc = get_mpc(
@@ -87,7 +91,7 @@ for i in tqdm(range(40000)):
     obs = obs_handler(obs)
     plan = planner.plan(obs)
     None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
-        *planner.prepare_plot(plan, N)
+        *planner.prepare_plot(plan, plan_steps)
     )
     env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     control_plan = mpc.get_action(plan, obs)

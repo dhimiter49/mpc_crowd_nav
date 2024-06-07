@@ -42,7 +42,7 @@ class AbstractMPC:
         return self.__call__(plan, obs)
 
 
-    def __call__(self, plan, obs):
+    def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
         goal, crowd_poss, vel, crowd_vels, walls = obs
         vel_plan[:self.N] -= vel[0]
@@ -53,7 +53,7 @@ class AbstractMPC:
         wall_eqs = self.wall_eq(walls)
         if len(wall_eqs) != 0:
             self.lin_pos_constraint(const_M, const_b, wall_eqs, vel)
-        idxs = self.relevant_idxs(vel)
+        idxs = self.find_relevant_idxs(vel)
         const_M.append(self.mat_acc_const)
         const_b.append(self.vec_acc_const(vel))
         const_M.append(self.mat_vel_const(idxs))
