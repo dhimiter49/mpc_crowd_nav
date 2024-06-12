@@ -13,6 +13,7 @@ class MPCCascAcc(MPCAcc):
         agent_max_acc: float,
         n_crowd: int = 0,
         plan_type: str = "Position",
+        plan_length: int = 20,
     ):
         super().__init__(
             horizon,
@@ -22,7 +23,8 @@ class MPCCascAcc(MPCAcc):
             agent_max_acc,
             n_crowd,
         )
-        self.M = 20
+        self.M = plan_length
+        self.plan_horizon = self.M
         self.plan_type = plan_type
 
         self.casc_vec_pos_vel = np.hstack([
@@ -84,6 +86,8 @@ class MPCCascAcc(MPCAcc):
                 -plan + self.casc_vec_pos_vel_plan * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_acc_plan + \
                 self.stability_coeff * np.repeat(vel, self.M) @ self.casc_mat_vel_acc_plan
+        else:
+            raise NotImplementedError
 
         self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N * self.M)
         self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N * self.M)

@@ -81,8 +81,9 @@ class MPCVel(AbstractMPC):
                     self.mat_pos_vel - self.stability_coeff * plan_vels.T
             self.vec_p = vec_p
 
-        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N - 1)
-        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
+        if type(self).__name__ == "MPCVel":
+            self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N - 1)
+            self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
 
 
     def gen_vel_const(self, horizon):

@@ -7,13 +7,14 @@ from mpc.mpc_vel import MPCVel
 class MPCCascVel(MPCVel):
     def __init__(
         self,
-        horizon: int,
+        horizon: int,  # represent braking horizon
         dt: float,
         physical_space: float,
         agent_max_vel: float,
         agent_max_acc: float,
         n_crowd: int = 0,
         plan_type: str = "Position",
+        plan_length: int = 20,
     ):
         super().__init__(
             horizon,
@@ -23,7 +24,8 @@ class MPCCascVel(MPCVel):
             agent_max_acc,
             n_crowd,
         )
-        self.M = 20
+        self.M = plan_length
+        self.plan_horizon = self.M
         self.plan_type = plan_type
 
         mat_pos_vel = self.mat_pos_vel[:self.N, :self.N - 1]
@@ -59,11 +61,6 @@ class MPCCascVel(MPCVel):
         filter_plan = np.zeros(self.N, dtype=int)
         filter_plan[0] = 1
         filter_plan = np.hstack([np.hstack([filter_plan] * self.M)] * 2)
-        filter_terminal_break = np.zeros(self.N, dtype=int)
-        filter_terminal_break[-1] = 1
-        filter_terminal_break = np.hstack(
-            [np.hstack([filter_terminal_break] * self.M)] * 2
-        )
 
         self.casc_mat_pos_vel_plan = self.casc_mat_pos_vel[np.nonzero(filter_plan)]
 
@@ -75,6 +72,8 @@ class MPCCascVel(MPCVel):
             self.vec_p = lambda _1, plan, _2, vel: (
                 -plan + 0.5 * self.DT * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_vel_plan
+        else:
+            raise NotImplementedError
 
         self.mat_vel_const, self.vec_vel_const = self.gen_vel_const((self.N - 1) * self.M)
         self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N * self.M)
@@ -172,8 +171,11 @@ class MPCCascVel(MPCVel):
             vel = self.last_planned_traj[1:].flatten("F")
         else:
             vel = np.hstack([  # only next braking trajecotry is relevant
-                vel[:self.N], vel[self.M * self.N:self.M * self.N + self.N]
+                vel[:self.N - 1],
+                vel[self.M * (self.N - 1):self.M * (self.N - 1) + (self.N - 1)]
             ])
-        action = np.array([vel[:self.N], vel[self.N:]]).T
+        action = np.array([
+            np.append(vel[:self.N - 1], 0), np.append(vel[self.N - 1:], 0)
+        ]).T
         self.last_planned_traj = action
         return action

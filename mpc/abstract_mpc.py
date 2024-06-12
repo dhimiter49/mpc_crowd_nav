@@ -20,6 +20,7 @@ class AbstractMPC:
         n_crowd: int = 0,
     ):
         self.N = horizon
+        self.plan_horizon = self.N
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
         self.AGENT_MAX_VEL = agent_max_vel
@@ -45,8 +46,8 @@ class AbstractMPC:
     def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
         goal, crowd_poss, vel, crowd_vels, walls = obs
-        vel_plan[:self.N] -= vel[0]
-        vel_plan[self.N:] -= vel[1]
+        vel_plan[:self.plan_horizon] -= vel[0]
+        vel_plan[self.plan_horizon:] -= vel[1]
 
         # Constraints
         const_M, const_b = [], []

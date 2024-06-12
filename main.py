@@ -66,11 +66,13 @@ plan_steps = N
 if "-v" in sys.argv and "-cs" in sys.argv:
     mpc_type = MPC_DICT["-vcs"]
     plan_steps = M
+    mpc_kwargs["plan_length"] = M
 elif "-v" in sys.argv:
     mpc_type = MPC_DICT["-v"]
 elif "-cs" in sys.argv:
     mpc_type = MPC_DICT["-cs"]
     plan_steps = M
+    mpc_kwargs["plan_length"] = M
 elif "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
     mpc_type = MPC_DICT["-lp"]
 else:
