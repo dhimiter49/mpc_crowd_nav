@@ -66,7 +66,7 @@ class MPCCascVel(MPCVel):
 
 
         if self.plan_type == "Position":
-            self.stability_coeff = 0.02
+            self.stability_coeff = 0.1
             self.mat_Q = self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan + \
                 self.stability_coeff * np.eye(2 * self.M * (self.N - 1))
             self.vec_p = lambda _1, plan, _2, vel: (
