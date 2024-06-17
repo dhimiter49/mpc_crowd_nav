@@ -102,7 +102,7 @@ class MPCVel(AbstractMPC):
 
 
     def gen_acc_const(self, horizon):
-        M_a_, b_a_, sgn_acc = super().gen_vel_param(horizon)
+        M_a_, b_a_, sgn_acc = super().gen_acc_param(horizon)
 
 
         def acc_vec_const(agent_vel):
