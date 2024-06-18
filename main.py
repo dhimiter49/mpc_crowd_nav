@@ -77,7 +77,7 @@ elif "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
     mpc_type = MPC_DICT["-lp"]
 else:
     mpc_type = MPC_DICT["-d"]
-planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
+planner = Plan(plan_steps + 10, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
 
 mpc = get_mpc(
@@ -94,9 +94,62 @@ mpc = get_mpc(
 obs = env.reset()
 plan = np.zeros((N, 2))
 returns, ep_return, vels, action = [], 0, [], [0, 0]
-for i in tqdm(range(40000)):
+ep_step = 0
+for i in tqdm(range(100000)):
     obs = obs_handler(obs)
-    plan = planner.plan(obs)
+    if ep_step % 10 == 0:
+        replan_plan = planner.plan(obs)
+        og_pos = env.get_wrapper_attr("current_pos")
+        pos_plan, vel_plan = replan_plan
+        pos_plan = np.array([pos_plan[:plan_steps + 10], pos_plan[plan_steps + 10:]]).T
+        vel_plan = np.array([vel_plan[:plan_steps + 10], vel_plan[plan_steps + 10:]]).T
+        pos_plan = pos_plan + og_pos
+        replan_plan = np.concatenate([pos_plan[:, 0], pos_plan[:, 1]]), \
+            np.concatenate([vel_plan[:, 0], vel_plan[:, 1]])
+
+        pos_plan = pos_plan[:plan_steps]
+        vel_plan = vel_plan[:plan_steps]
+        pos_plan = np.concatenate([pos_plan[:, 0], pos_plan[:, 1]])
+        vel_plan = np.concatenate([vel_plan[:, 0], vel_plan[:, 1]])
+        plan = pos_plan, vel_plan
+    else:
+        entire_pos_plan, entire_vel_plan = replan_plan
+        entire_pos_plan = np.array(
+            [entire_pos_plan[:plan_steps + 10], entire_pos_plan[plan_steps + 10:]]
+        ).T
+        entire_vel_plan = np.array(
+            [entire_vel_plan[:plan_steps + 10], entire_vel_plan[plan_steps + 10:]]
+        ).T
+        curr_pos = env.get_wrapper_attr("current_pos")
+        min_dist_point = np.argmin(
+            np.linalg.norm(curr_pos - entire_pos_plan, axis=-1)
+        )
+        closest_point = entire_pos_plan[min_dist_point]
+        pos_plan = entire_pos_plan[min_dist_point:min_dist_point + plan_steps]
+        vel_plan = entire_vel_plan[min_dist_point:min_dist_point + plan_steps]
+        # vectors to destination
+        closest_point_vec = closest_point - entire_pos_plan[-1]
+        current_pos_vec = curr_pos - entire_pos_plan[-1]
+        if np.linalg.norm(closest_point_vec) > 0:
+            closest_point_vec = closest_point_vec / np.linalg.norm(closest_point_vec)
+        if np.linalg.norm(current_pos_vec) > 0:
+            current_pos_vec = current_pos_vec / np.linalg.norm(current_pos_vec)
+        angle = -np.arctan2(*current_pos_vec) + np.arctan2(*closest_point_vec)
+        rot_mat = np.array([
+            [np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]
+        ])
+        pos_plan_ = np.empty_like(pos_plan)
+        for i, (pos, vel) in enumerate(zip(pos_plan, vel_plan)):
+            pos_vec = pos - entire_pos_plan[-1]
+            rot_pos_vec = rot_mat @ pos_vec
+            pos_plan_[i] = pos + rot_pos_vec - pos_vec
+        pos_plan = pos_plan_
+        pos_plan -= curr_pos
+        pos_plan = np.concatenate([pos_plan[:, 0], pos_plan[:, 1]])
+        vel_plan = np.concatenate([vel_plan[:, 0], vel_plan[:, 1]])
+        plan = pos_plan, vel_plan
+
+
     None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
         *planner.prepare_plot(plan, plan_steps)
     )
@@ -105,7 +158,9 @@ for i in tqdm(range(40000)):
     obs, reward, terminated, truncated, info = env.step(control_plan[0])
     ep_return += reward
     env.render() if render else None
+    ep_step += 1
     if terminated or truncated:
+        ep_step = 0
         obs = env.reset()
         returns.append(ep_return)
         ep_return = 0

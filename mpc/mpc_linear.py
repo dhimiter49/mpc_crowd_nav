@@ -40,7 +40,7 @@ class MPCLinear(MPCAcc):
                 self.mat_pos_acc + (-vel_plan).T  @ self.mat_vel_acc
             )
         elif self.plan_type == "Position":
-            self.stability_coeff = 0.25
+            self.stability_coeff = 0.5
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.mat_pos_acc.T @ self.mat_pos_acc +
                 self.stability_coeff * self.mat_vel_acc.T @ self.mat_vel_acc
