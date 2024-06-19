@@ -1,5 +1,5 @@
-
 import numpy as np
+import scipy
 
 from mpc.mpc_vel import MPCVel
 
@@ -64,6 +64,13 @@ class MPCCascVel(MPCVel):
 
         self.casc_mat_pos_vel_plan = self.casc_mat_pos_vel[np.nonzero(filter_plan)]
 
+        filter_plan = np.zeros(self.N - 1, dtype=int)
+        filter_plan[0] = 1
+        filter_plan = np.hstack([np.hstack([filter_plan] * self.M)] * 2)
+        self.casc_mat_vel_plan = np.eye(
+            2 * self.M * (self.N - 1)
+        )[np.nonzero(filter_plan)]
+
 
         if self.plan_type == "Position":
             self.stability_coeff = 0.1
@@ -72,6 +79,32 @@ class MPCCascVel(MPCVel):
             self.vec_p = lambda _1, plan, _2, vel: (
                 -plan + 0.5 * self.DT * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_vel_plan
+        elif self.plan_type == "Velocity":
+            self.mat_Q = scipy.sparse.csc_matrix(
+                self.casc_mat_vel_plan.T @ self.casc_mat_vel_plan
+            )
+
+
+            def vec_p(_1, _2, plan_vels, vel):
+                plan_vels[:self.M] += vel[0]
+                plan_vels[self.M:] += vel[1]
+                return -plan_vels.T @ self.casc_mat_vel_plan
+            self.vec_p = vec_p
+        elif self.plan_type == "PositionVelocity":
+            self.vel_coeff = 0.5
+            self.mat_Q = scipy.sparse.csc_matrix(
+                self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan +
+                self.vel_coeff * self.casc_mat_vel_plan.T @ self.casc_mat_vel_plan
+            )
+
+
+            def vec_p(_, plan_pos, plan_vels, vel):
+                plan_vels[:self.M] += vel[0]
+                plan_vels[self.M:] += vel[1]
+                return (-plan_pos + 0.5 * self.DT * np.repeat(vel, self.M)).T @ \
+                    self.casc_mat_pos_vel_plan - self.vel_coeff * plan_vels.T  @\
+                    self.casc_mat_vel_plan
+            self.vec_p = vec_p
         else:
             raise NotImplementedError
 
