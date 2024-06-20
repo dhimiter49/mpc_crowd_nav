@@ -21,6 +21,7 @@ ENV_DICT = {
     "-d": "Navigation",
     "-c": "CrowdNavigationStatic",
     "-mc": "CrowdNavigation",
+    "-mcc": "CrowdNavigationConst",
 }
 
 PLAN_DICT = {
@@ -31,17 +32,17 @@ PLAN_DICT = {
 
 
 velocity_str = "Vel" if "-v" in sys.argv else ""
-if "-c" in sys.argv or "-csc" in sys.argv:
+if "-c" in sys.argv:
     env_type = ENV_DICT["-c"]
-    mpc_type = MPC_DICT["-lp"]
     env = gym.make("fancy/CrowdNavigationStatic%s-v0" % velocity_str)
-elif "-mc" in sys.argv or "-csmc" in sys.argv:
+elif "-mc" in sys.argv:
     env_type = ENV_DICT["-mc"]
-    mpc_type = MPC_DICT["-lp"]
     env = gym.make("fancy/CrowdNavigation%s-v0" % velocity_str)
+elif "-mcc" in sys.argv:
+    env_type = ENV_DICT["-mc"]
+    env = gym.make("fancy/CrowdNavigationConst%s-v0" % velocity_str)
 else:
     env_type = ENV_DICT["-d"]
-    mpc_type = MPC_DICT["-d"]
     env = gym.make("fancy/Navigation%s-v0" % velocity_str)
 obs_handler = ObsHandler(env_type, env.get_wrapper_attr("n_crowd"))
 render = "-nr" not in sys.argv

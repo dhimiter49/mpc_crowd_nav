@@ -20,7 +20,8 @@ class ObsHandler:
                 None,
                 obs[self.n_crowd + 4:]
             )
-        elif self.env_type == "CrowdNavigation":
+        elif self.env_type == "CrowdNavigation" or\
+            self.env_type == "CrowdNavigationConst":
             # goal, crowd, agent velocity, crowd velocities, walls
             return (
                 obs[: 2],
