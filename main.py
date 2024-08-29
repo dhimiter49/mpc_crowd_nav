@@ -129,6 +129,7 @@ for i in tqdm(range(steps)):
         returns.append(ep_return)
         ep_return = 0
         ep_count += 1
-np.save("dataset.npy", dataset)
+if gen_data:
+    np.save("dataset.npy", dataset)
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
