@@ -1,5 +1,5 @@
 import numpy as np
-from mpc.mpc_acc import MPCAcc
+from mpc.acc import MPCAcc
 import scipy
 
 

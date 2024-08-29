@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 
-from mpc.mpc_acc import MPCAcc
+from mpc.acc import MPCAcc
 
 
 class MPCCascAcc(MPCAcc):

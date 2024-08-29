@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 
-from mpc.abstract_mpc import AbstractMPC
+from mpc.abstract import AbstractMPC
 
 
 class MPCVel(AbstractMPC):

@@ -4,7 +4,7 @@ from tqdm import tqdm
 import fancy_gym
 import gymnasium as gym
 
-from mpc.mpc_factory import get_mpc
+from mpc.factory import get_mpc
 from plan import Plan
 from obs_handler import ObsHandler
 

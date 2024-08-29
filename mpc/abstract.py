@@ -73,6 +73,8 @@ class AbstractMPC:
             G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
             A=term_const_M, b=term_const_b,
             solver="clarabel",
+            # eps_abs=1e-4,
+            # eps_duality_gap_abs=1e-4,
             tol_gap_abs=5e-5,
             tol_gap_rel=5e-5,
             tol_feas=1e-4,

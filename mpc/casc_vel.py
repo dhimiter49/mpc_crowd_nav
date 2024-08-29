@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 
-from mpc.mpc_vel import MPCVel
+from mpc.vel import MPCVel
 
 
 class MPCCascVel(MPCVel):

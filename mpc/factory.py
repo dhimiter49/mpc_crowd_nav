@@ -1,8 +1,8 @@
-from mpc.mpc_acc import MPCAcc
-from mpc.mpc_vel import MPCVel
-from mpc.mpc_linear import MPCLinear
-from mpc.mpc_casc_acc import MPCCascAcc
-from mpc.mpc_casc_vel import MPCCascVel
+from mpc.acc import MPCAcc
+from mpc.vel import MPCVel
+from mpc.linear import MPCLinear
+from mpc.casc_acc import MPCCascAcc
+from mpc.casc_vel import MPCCascVel
 
 ALL_TYPES = [
     "simple", "linear_plan", "velocity_control", "cascading", "velocity_control_cascading"
