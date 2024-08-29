@@ -31,6 +31,8 @@ PLAN_DICT = {
 }
 
 
+gen_data = "-gd" in sys.argv
+
 velocity_str = "Vel" if "-v" in sys.argv else ""
 if "-c" in sys.argv:
     env_type = ENV_DICT["-c"]
@@ -92,10 +94,17 @@ mpc = get_mpc(
     **mpc_kwargs
 )
 
+steps = 100000
 obs = env.reset()
 plan = np.zeros((N, 2))
-returns, ep_return, vels, action = [], 0, [], [0, 0]
-for i in tqdm(range(40000)):
+returns, ep_return, vels, action = [], 0, [], np.array([0, 0])
+ep_count = 0
+dataset = np.empty((
+    steps,
+    np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
+))
+for i in tqdm(range(steps)):
+    old_obs = obs[0].copy() if isinstance(obs, tuple) else obs.copy()
     obs = obs_handler(obs)
     plan = planner.plan(obs)
     None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
@@ -104,10 +113,22 @@ for i in tqdm(range(40000)):
     env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     control_plan = mpc.get_action(plan, obs)
     obs, reward, terminated, truncated, info = env.step(control_plan[0])
+    if gen_data:
+        dataset[i] = np.hstack([
+            old_obs.flatten(),
+            obs.flatten(),
+            control_plan[0].flatten(),
+            np.array(reward),
+            np.array(terminated),
+            np.array(truncated)
+        ])
     ep_return += reward
     env.render() if render else None
     if terminated or truncated:
         obs = env.reset()
         returns.append(ep_return)
         ep_return = 0
+        ep_count += 1
+np.save("dataset.npy", dataset)
 print("Mean: ", np.mean(returns))
+print("Number of episodes", ep_count)
