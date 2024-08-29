@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 from mpc.mpc_acc import MPCAcc
 
@@ -79,9 +80,11 @@ class MPCCascAcc(MPCAcc):
 
         if self.plan_type == "Position":
             self.stability_coeff = 0.075
-            self.mat_Q = self.casc_mat_pos_acc_plan.T @ self.casc_mat_pos_acc_plan + \
+            self.mat_Q = scipy.sparse.csc_matrix(
+                self.casc_mat_pos_acc_plan.T @ self.casc_mat_pos_acc_plan +
                 self.stability_coeff * self.casc_mat_vel_acc_plan.T @ \
                 self.casc_mat_vel_acc_plan
+            )
             self.vec_p = lambda _1, plan, _2, vel: (
                 -plan + self.casc_vec_pos_vel_plan * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_acc_plan + \

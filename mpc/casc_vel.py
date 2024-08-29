@@ -74,8 +74,10 @@ class MPCCascVel(MPCVel):
 
         if self.plan_type == "Position":
             self.stability_coeff = 0.1
-            self.mat_Q = self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan + \
+            self.mat_Q = scipy.sparse.csc_matrix(
+                self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan +
                 self.stability_coeff * np.eye(2 * self.M * (self.N - 1))
+            )
             self.vec_p = lambda _1, plan, _2, vel: (
                 -plan + 0.5 * self.DT * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_vel_plan
