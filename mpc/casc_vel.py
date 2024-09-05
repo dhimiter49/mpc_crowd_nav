@@ -32,12 +32,12 @@ class MPCCascVel(MPCVel):
         self.casc_mat_pos_vel = np.zeros((self.M * self.N, self.M * (self.N - 1)))
         for i in range(self.M):
             self.casc_mat_pos_vel[
-                i * self.N:i * self.N + self.N,
+                i * self.N:(i + 1) * self.N,
                 i * (self.N - 1):i * (self.N - 1) + self.N - 1
             ] = mat_pos_vel
             for j in range(i):
                 self.casc_mat_pos_vel[
-                    i * self.N:(i + 1) * self.N, j * self.N
+                    i * self.N:(i + 1) * self.N, j * (self.N - 1)
                 ] = np.ones(self.N) * self.DT
         self.casc_mat_pos_vel = np.stack([
             np.hstack([self.casc_mat_pos_vel, self.casc_mat_pos_vel * 0]),
