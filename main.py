@@ -34,18 +34,20 @@ PLAN_DICT = {
 gen_data = "-gd" in sys.argv
 
 velocity_str = "Vel" if "-v" in sys.argv else ""
+env_str = ""
 if "-c" in sys.argv:
     env_type = ENV_DICT["-c"]
-    env = gym.make("fancy/CrowdNavigationStatic%s-v0" % velocity_str)
+    env_str = "CrowdNavigationStatic%s-v0" % velocity_str
 elif "-mc" in sys.argv:
     env_type = ENV_DICT["-mc"]
-    env = gym.make("fancy/CrowdNavigation%s-v0" % velocity_str)
+    env_str = "CrowdNavigation%s-v0" % velocity_str
 elif "-mcc" in sys.argv:
     env_type = ENV_DICT["-mc"]
-    env = gym.make("fancy/CrowdNavigationConst%s-v0" % velocity_str)
+    env_str = "CrowdNavigationConst%s-v0" % velocity_str
 else:
     env_type = ENV_DICT["-d"]
-    env = gym.make("fancy/Navigation%s-v0" % velocity_str)
+    env_str = "Navigation%s-v0" % velocity_str
+env = gym.make("fancy/" + env_str)
 obs_handler = ObsHandler(env_type, env.get_wrapper_attr("n_crowd"))
 render = "-nr" not in sys.argv
 
@@ -130,6 +132,6 @@ for i in tqdm(range(steps)):
         ep_return = 0
         ep_count += 1
 if gen_data:
-    np.save("dataset.npy", dataset)
+    np.save("dataset_" + env_str + ".npy", dataset)
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
