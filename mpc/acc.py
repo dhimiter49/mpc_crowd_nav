@@ -14,6 +14,7 @@ class MPCAcc(AbstractMPC):
         horizon: int,
         dt: float,
         physical_space: float,
+        const_dist_crowd: float,
         agent_max_vel: float,
         agent_max_acc: float,
         n_crowd: int = 0,
@@ -22,6 +23,7 @@ class MPCAcc(AbstractMPC):
             horizon,
             dt,
             physical_space,
+            const_dist_crowd,
             agent_max_vel,
             agent_max_acc,
             n_crowd,
@@ -95,7 +97,7 @@ class MPCAcc(AbstractMPC):
             ])
             vec_crowd = mat_crowd @ (
                 -poss.flatten("F") + self.vec_pos_vel * np.repeat(vel, self.N)
-            ) - np.array([4 * self.PHYSICAL_SPACE] * self.N)
+            ) - np.array([self.CONST_DIST_CROWD] * self.N)
             mat_crowd_control = -mat_crowd @ self.mat_pos_acc
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)

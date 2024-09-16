@@ -90,6 +90,7 @@ mpc = get_mpc(
     horizon=N,
     dt=DT,
     physical_space=env.get_wrapper_attr("PHYSICAL_SPACE"),
+    const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE") * 2 + 0.1,
     agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
     agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
     n_crowd=env.get_wrapper_attr("n_crowd"),

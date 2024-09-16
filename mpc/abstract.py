@@ -15,6 +15,7 @@ class AbstractMPC:
         horizon: int,
         dt: float,
         physical_space: float,
+        const_dist_crowd: float,
         agent_max_vel: float,
         agent_max_acc: float,
         n_crowd: int = 0,
@@ -23,6 +24,7 @@ class AbstractMPC:
         self.plan_horizon = self.N
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
+        self.CONST_DIST_CROWD = const_dist_crowd
         self.AGENT_MAX_VEL = agent_max_vel
         self.AGENT_MAX_ACC = agent_max_acc
         self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC

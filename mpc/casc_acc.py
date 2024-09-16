@@ -10,6 +10,7 @@ class MPCCascAcc(MPCAcc):
         horizon: int,
         dt: float,
         physical_space: float,
+        const_dist_crowd: float,
         agent_max_vel: float,
         agent_max_acc: float,
         n_crowd: int = 0,
@@ -20,6 +21,7 @@ class MPCCascAcc(MPCAcc):
             horizon,
             dt,
             physical_space,
+            const_dist_crowd,
             agent_max_vel,
             agent_max_acc,
             n_crowd,
@@ -122,7 +124,7 @@ class MPCCascAcc(MPCAcc):
             vec_crowd = mat_crowd @ (
                 -poss.flatten("F") + self.casc_vec_pos_vel *
                 np.repeat(vel, self.N * self.M)
-            ) - np.array([4 * self.PHYSICAL_SPACE] * self.N * self.M)
+            ) - np.array([self.CONST_DIST_CROWD] * self.N * self.M)
             mat_crowd_control = -mat_crowd @ self.casc_mat_pos_acc
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
