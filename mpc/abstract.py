@@ -191,3 +191,7 @@ class AbstractMPC:
         b_a_ = np.repeat(self.POLYGON_ACC_LINES[:, 1], horizon)
 
         return M_a_, b_a_, sgn_acc
+
+
+    def reset(self):
+        self.last_planned_traj *= 0

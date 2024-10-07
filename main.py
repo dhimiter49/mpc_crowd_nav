@@ -129,6 +129,7 @@ for i in tqdm(range(steps)):
     env.render() if render else None
     if terminated or truncated:
         obs = env.reset()
+        mpc.reset()
         returns.append(ep_return)
         ep_return = 0
         ep_count += 1
