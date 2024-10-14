@@ -98,7 +98,7 @@ class AbstractMPC:
         return np.stack([crowd_poss] * self.N) + np.einsum(
             'ijk,i->ijk',
             np.stack([crowd_vels] * self.N, 0) * self.DT,
-            np.arange(0, self.N)
+            np.arange(1, self.N + 1)
         )
 
 
