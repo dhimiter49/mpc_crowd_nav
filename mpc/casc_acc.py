@@ -158,7 +158,7 @@ class MPCCascAcc(MPCAcc):
         horizon_crowd_poss = np.stack([crowd_poss] * (self.N + self.M)) + np.einsum(
             'ijk,i->ijk',
             np.stack([crowd_vels] * (self.N + self.M), 0) * self.DT,
-            np.arange(0, (self.N + self.M))
+            np.arange(1, (self.N + self.M + 1))
         )
         return self.cascade_crowd_positions(horizon_crowd_poss)
 
