@@ -117,7 +117,7 @@ class AbstractMPC:
             ],
             axis=1
         )
-        return eqs[wall_dist < self.MAX_DIST_STOP_CROWD * 0.6]
+        return eqs[wall_dist < self.MAX_DIST_STOP_CROWD]
 
 
     def relevant_idxs(self, vel):
