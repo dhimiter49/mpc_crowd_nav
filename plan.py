@@ -18,8 +18,10 @@ class Plan:
         dist = np.linalg.norm(goal)
         vels = np.stack([(self.MAX_VEL) / dist * goal] * self.N).reshape(self.N, 2)
         if self.MAX_VEL * self.DT > dist:
+            # go directly to goal
             oneD_steps = np.array([dist])
         else:
+            # steps to goal, multplying max_vel by 2 seems to work better
             oneD_steps = np.arange(
                 self.MAX_VEL * self.DT, dist, 2 * self.MAX_VEL * self.DT
             )
@@ -40,4 +42,4 @@ class Plan:
         steps[:, 1] = pos_plan[N:]
         steps_vel[:, 0] = vel_plan[:N]
         steps_vel[:, 1] = vel_plan[N:]
-        return steps - steps[0], steps_vel
+        return np.concatenate([np.zeros((1, 2)), steps]), steps_vel
