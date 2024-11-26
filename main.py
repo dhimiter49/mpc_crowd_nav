@@ -113,7 +113,6 @@ for i in tqdm(range(steps)):
     None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
         *planner.prepare_plot(plan, plan_steps)
     )
-    env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     control_plan = mpc.get_action(plan, obs)
     obs, reward, terminated, truncated, info = env.step(control_plan[0])
     if gen_data:
@@ -126,6 +125,7 @@ for i in tqdm(range(steps)):
             np.array(truncated)
         ])
     ep_return += reward
+    env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     env.render() if render else None
     if terminated or truncated:
         obs = env.reset()
