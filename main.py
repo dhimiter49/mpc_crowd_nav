@@ -51,8 +51,8 @@ env = gym.make("fancy/" + env_str)
 obs_handler = ObsHandler(env_type, env.get_wrapper_attr("n_crowd"))
 render = "-nr" not in sys.argv
 
-N = 21
-M = 20
+N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
+M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 DT = env.unwrapped.dt
 
 mpc_kwargs = {}
