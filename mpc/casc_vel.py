@@ -54,7 +54,7 @@ class MPCCascVel(MPCVel):
                 i * (self.N - 1):i * (self.N - 1) + self.N - 1
             ] = mat_acc_vel
             if i > 0:
-                self.casc_mat_acc_vel[i * self.N:(i - 1) * (self.N - 1)] = -1 / self.DT
+                self.casc_mat_acc_vel[i * self.N, (i - 1) * (self.N - 1)] = -1 / self.DT
         self.casc_mat_acc_vel = np.stack([
             np.hstack([self.casc_mat_acc_vel, self.casc_mat_acc_vel * 0]),
             np.hstack([self.casc_mat_acc_vel * 0, self.casc_mat_acc_vel])
