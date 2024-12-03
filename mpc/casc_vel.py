@@ -59,6 +59,7 @@ class MPCCascVel(MPCVel):
             np.hstack([self.casc_mat_acc_vel, self.casc_mat_acc_vel * 0]),
             np.hstack([self.casc_mat_acc_vel * 0, self.casc_mat_acc_vel])
         ]).reshape(2 * self.M * self.N, 2 * self.M * (self.N - 1))
+        self.mat_acc_vel = self.casc_mat_acc_vel
 
         filter_plan = np.zeros(self.N, dtype=int)
         filter_plan[0] = 1
@@ -114,18 +115,6 @@ class MPCCascVel(MPCVel):
 
         self.mat_vel_const, self.vec_vel_const = self.gen_vel_const((self.N - 1) * self.M)
         self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N * self.M)
-
-
-    def gen_acc_const(self, horizon):
-        M_a_, b_a_, sgn_acc = self.gen_acc_param(horizon)
-
-
-        def acc_vec_const(agent_vel):
-            agent_vel_ = np.zeros(2 * (horizon))
-            agent_vel_[0], agent_vel_[horizon] = agent_vel
-            return sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
-
-        return ((M_a_ @ self.casc_mat_acc_vel).T * sgn_acc).T, acc_vec_const
 
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, vel):
