@@ -157,7 +157,7 @@ class MPCVel(AbstractMPC):
     def __call__(self, plan, obs):
         vel = self.core_mpc(plan, obs)
         if vel is None:
-            print("Executing last computed braking trajectory!")
+            # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
 
         action = np.array([

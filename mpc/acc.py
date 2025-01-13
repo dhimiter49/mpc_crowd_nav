@@ -131,7 +131,7 @@ class MPCAcc(AbstractMPC):
     def __call__(self, plan, obs):
         acc = self.core_mpc(plan, obs)
         if acc is None:
-            print("Executing last computed braking trajectory!")
+            # print("Executing last computed braking trajectory!")
             acc = np.zeros(2 * self.N)
             acc[0:self.N - 1] = self.last_planned_traj[1:, 0]
             acc[self.N:2 * self.N - 1] = self.last_planned_traj[1:, 1]

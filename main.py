@@ -44,6 +44,12 @@ elif "-mc" in sys.argv:
 elif "-mcc" in sys.argv:
     env_type = ENV_DICT["-mc"]
     env_str = "CrowdNavigationConst%s-v0" % velocity_str
+elif "-mcs" in sys.argv:
+    env_type = ENV_DICT["-mc"]
+    env_str = "CrowdNavigationSFM%s-v0" % velocity_str
+elif "-mcs" in sys.argv:
+    env_type = ENV_DICT["-mc"]
+    env_str = "CrowdNavigationORCA%s-v0" % velocity_str
 else:
     env_type = ENV_DICT["-d"]
     env_str = "Navigation%s-v0" % velocity_str

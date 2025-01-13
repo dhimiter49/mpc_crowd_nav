@@ -170,8 +170,8 @@ class MPCCascVel(MPCVel):
 
     def cascade_crowd_positions(self, crowd_poss):
         """
-        Take crowd positions and cascade them meaning from [1,..., M + N] converrt to
-        [1, 2,.., N, 2,..., N + 1, 3,..., M, M + 2,..., M + N].
+        Take crowd positions and cascade them meaning from [1,..., M + N] convert to
+        [1, 2,.., N, 2,..., N + 1, 3,..., M + N - 1, M + 1,..., M + N].
 
         Args:
             crowd_poss (numpy.ndarray): an array of size (n_crowd, 2) with the current
@@ -193,7 +193,7 @@ class MPCCascVel(MPCVel):
     def __call__(self, plan, obs):
         vel = self.core_mpc(plan, obs)
         if vel is None:
-            print("Executing last computed braking trajectory!")
+            # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
         else:
             vel = np.hstack([  # only next braking trajecotry is relevant
