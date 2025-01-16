@@ -28,7 +28,7 @@ class MPCAcc(AbstractMPC):
             agent_max_acc,
             n_crowd,
         )
-        self.stability_coeff = 0.5
+        self.stability_coeff = 0.3
 
         self.vec_pos_vel = np.hstack([np.arange(1, self.N + 1)] * 2) * self.DT
 
