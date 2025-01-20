@@ -17,7 +17,7 @@ class Plan:
         steps = np.zeros((self.N, 2))
         dist = np.linalg.norm(goal)
         vels = np.stack([(self.MAX_VEL) / dist * goal] * self.N).reshape(self.N, 2)
-        if self.MAX_VEL * self.DT > dist:
+        if self.MAX_VEL * self.DT >= dist:
             # go directly to goal
             oneD_steps = np.array([dist])
         else:
