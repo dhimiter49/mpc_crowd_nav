@@ -115,6 +115,7 @@ class MPCCascVel(MPCVel):
 
         self.mat_vel_const, self.vec_vel_const = self.gen_vel_const((self.N - 1) * self.M)
         self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N * self.M)
+        self.last_planned_traj_casc = np.zeros((self.M * (self.N - 1) * 2))
 
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, vel):
