@@ -22,6 +22,8 @@ ENV_DICT = {
     "-c": "CrowdNavigationStatic",
     "-mc": "CrowdNavigation",
     "-mcc": "CrowdNavigationConst",
+    "-mcs": "CrowdNavigation",
+    "-mco": "CrowdNavigation",
 }
 
 PLAN_DICT = {
@@ -45,10 +47,10 @@ elif "-mcc" in sys.argv:
     env_type = ENV_DICT["-mc"]
     env_str = "CrowdNavigationConst%s-v0" % velocity_str
 elif "-mcs" in sys.argv:
-    env_type = ENV_DICT["-mc"]
+    env_type = ENV_DICT["-mcs"]
     env_str = "CrowdNavigationSFM%s-v0" % velocity_str
 elif "-mco" in sys.argv:
-    env_type = ENV_DICT["-mc"]
+    env_type = ENV_DICT["-mco"]
     env_str = "CrowdNavigationORCA%s-v0" % velocity_str
 else:
     env_type = ENV_DICT["-d"]
