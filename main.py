@@ -24,6 +24,7 @@ ENV_DICT = {
     "-mcc": "CrowdNavigationConst",
     "-mcs": "CrowdNavigation",
     "-mco": "CrowdNavigation",
+    "-mci": "CrowdNavigationInter",
 }
 
 PLAN_DICT = {
@@ -52,10 +53,15 @@ elif "-mcs" in sys.argv:
 elif "-mco" in sys.argv:
     env_type = ENV_DICT["-mco"]
     env_str = "CrowdNavigationORCA%s-v0" % velocity_str
+elif "-mci" in sys.argv:
+    env_type = ENV_DICT["-mci"]
+    env_str = "CrowdNavigationInter%s-v0" % velocity_str
 else:
     env_type = ENV_DICT["-d"]
     env_str = "Navigation%s-v0" % velocity_str
 env = gym.make("fancy/" + env_str)
+print("Observation space: ", env.observation_space.shape)
+print("Acion space: ", env.action_space.shape)
 obs_handler = ObsHandler(env_type, env.get_wrapper_attr("n_crowd"))
 render = "-nr" not in sys.argv
 
@@ -90,20 +96,22 @@ elif "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
     mpc_type = MPC_DICT["-lp"]
 else:
     mpc_type = MPC_DICT["-d"]
+n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
 planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
-
-mpc = get_mpc(
-    mpc_type,
-    horizon=N,
-    dt=DT,
-    physical_space=env.get_wrapper_attr("PHYSICAL_SPACE"),
-    const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE") * 2 + 0.00001,
-    agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
-    agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
-    n_crowd=env.get_wrapper_attr("n_crowd"),
-    **mpc_kwargs
-)
+mpc = [
+    get_mpc(
+        mpc_type,
+        horizon=N,
+        dt=DT,
+        physical_space=env.get_wrapper_attr("PHYSICAL_SPACE"),
+        const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE") * 2 + 0.00001,
+        agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
+        agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
+        n_crowd=env.get_wrapper_attr("n_crowd") if n_agents == 1 else
+        env.get_wrapper_attr("n_crowd") - 1,
+        **mpc_kwargs
+    ) for _ in range(n_agents)]
 
 steps = 100000
 obs = env.reset()
@@ -117,12 +125,23 @@ dataset = np.empty((
 for i in tqdm(range(steps)):
     old_obs = obs[0].copy() if isinstance(obs, tuple) else obs.copy()
     obs = obs_handler(obs)
-    plan = planner.plan(obs)
-    None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
-        *planner.prepare_plot(plan, plan_steps)
-    )
-    control_plan = mpc.get_action(plan, obs)
-    obs, reward, terminated, truncated, info = env.step(control_plan[0])
+    if n_agents > 1:
+        plan = []
+        for _obs in obs:
+            plan.append(planner.plan(_obs))
+    else:
+        plan = planner.plan(obs)
+    # None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
+    #     *planner.prepare_plot(plan, plan_steps)
+    # )
+    if n_agents > 1:
+        control_plan = []
+        for i, (_plan, _obs) in enumerate(zip(plan, obs)):
+            control_plan.append(mpc[i].get_action(_plan, _obs)[0])
+        control_plan = np.array(control_plan).flatten()
+    else:
+        control_plan = mpc[0].get_action(plan, obs)[0]
+    obs, reward, terminated, truncated, info = env.step(control_plan)
     if gen_data:
         dataset[i] = np.hstack([
             old_obs.flatten(),
@@ -137,7 +156,8 @@ for i in tqdm(range(steps)):
     env.render() if render else None
     if terminated or truncated:
         obs = env.reset()
-        mpc.reset()
+        for i in range(n_agents):
+            mpc[i].reset()
         returns.append(ep_return)
         ep_return = 0
         ep_count += 1

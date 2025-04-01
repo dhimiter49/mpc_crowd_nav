@@ -1,6 +1,10 @@
+import numpy as np
+
+
 class ObsHandler:
     def __init__(self, env_type: str, n_crowd: int = 0):
         self.env_type = env_type
+        self.n_inter_crowd = (n_crowd - 1) * 2
         self.n_crowd = n_crowd * 2  # two dimensions x and y
 
 
@@ -30,6 +34,18 @@ class ObsHandler:
                 obs[self.n_crowd + 4:2 * self.n_crowd + 4],
                 obs[2 * self.n_crowd + 4:]
             )
+        elif self.env_type == "CrowdNavigationInter":
+            list_of_obs = list(np.array(obs).reshape(self.n_crowd // 2, -1))
+            new_list_of_obs = []
+            for obs_ in list_of_obs:
+                new_list_of_obs.append((
+                    obs_[: 2],
+                    obs_[2:2 + self.n_inter_crowd],
+                    obs_[2 + self.n_inter_crowd:self.n_inter_crowd + 4],
+                    obs_[self.n_inter_crowd + 4:2 * self.n_inter_crowd + 4],
+                    obs_[2 * self.n_inter_crowd + 4:]
+                ))
+            return new_list_of_obs
         else:
             # goal, agent velocity, walls
             return obs[:2], None, obs[2:4], None, obs[-4:]
