@@ -67,7 +67,6 @@ class MPCVel(AbstractMPC):
                 plan_vels[self.N:] += vel[1]
                 plan_vels = np.delete(plan_vels, [self.N - 1, 2 * self.N - 1])
                 return -plan_vels.T
-            self.vec_p = vec_p
         elif self.plan_type == "PositionVelocity":
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.mat_pos_vel.T @ self.mat_pos_vel +
@@ -81,7 +80,7 @@ class MPCVel(AbstractMPC):
                 plan_vels = np.delete(plan_vels, [self.N - 1, 2 * self.N - 1])
                 return (-plan_pos + 0.5 * self.DT * np.repeat(vel, self.N)).T @ \
                     self.mat_pos_vel - self.stability_coeff * plan_vels.T
-            self.vec_p = vec_p
+        self.vec_p = vec_p
 
         if type(self).__name__ == "MPCVel":
             self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N - 1)

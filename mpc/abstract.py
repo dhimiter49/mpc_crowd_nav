@@ -142,7 +142,7 @@ class AbstractMPC:
 
     def ignore_crowd_member(self, crowd_poss, member, agent_vel):
         """
-        Ignore crowd members that are too far or in antoher direction.
+        Ignore crowd members that are too far or in another direction.
 
         Return:
             np.ndarray: relative position of member
@@ -150,6 +150,9 @@ class AbstractMPC:
             bool: ignore flag
         """
         poss = crowd_poss[:, member, :]
+        # print(np.where(np.linalg.norm(poss, axis=-1) <= 0.8)[0])
+        zero_idx = np.where(np.linalg.norm(poss, axis=-1) == 0)[0]
+        poss[zero_idx] += 1e-8
         vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
         dist = np.linalg.norm(poss, axis=-1)
         angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
