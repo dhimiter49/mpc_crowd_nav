@@ -70,6 +70,7 @@ class AbstractMPC:
         term_const_M, term_const_b = self.terminal_const(vel)
 
         return solve_qp(
+            # self.mat_Q, self.vec_p(goal, pos_plan, vel_plan, vel, crowd_poss),
             self.mat_Q, self.vec_p(goal, pos_plan, vel_plan, vel),
             # lb=-acc_b, ub=acc_b,
             G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),

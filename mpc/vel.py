@@ -58,7 +58,7 @@ class MPCVel(AbstractMPC):
                 self.stability_coeff * np.eye(2 * (self.N - 1))
             )
             # self.mat_Q = scipy.sparse.csc_matrix(
-            #     (1 - self.avoid_crowd_coff) * self.mat_pos_vel.T @ self.mat_pos_vel +
+            #     (1 - self.avoid_crowd_coeff) * self.mat_pos_vel.T @ self.mat_pos_vel +
             #     self.stability_coeff * np.eye(2 * (self.N - 1))
             # )
 
