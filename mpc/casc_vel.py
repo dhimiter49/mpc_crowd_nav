@@ -192,11 +192,16 @@ class MPCCascVel(MPCVel):
 
 
     def __call__(self, plan, obs):
+        # goal, crowd_poss, agent_vel, crowd_vels, walls = obs
+        # crowd_poss = self.calculate_crowd_poss(
+        #     crowd_poss.reshape(self.n_crowd, 2), crowd_vels
+        # )
         vel = self.core_mpc(plan, obs)
         if vel is None:
             # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
         else:
+            # self.last_planned_traj_casc = vel
             vel = np.hstack([  # only next braking trajecotry is relevant
                 vel[:self.N - 1],
                 vel[self.M * (self.N - 1):self.M * (self.N - 1) + (self.N - 1)]
@@ -204,5 +209,19 @@ class MPCCascVel(MPCVel):
         action = np.array([
             np.append(vel[:self.N - 1], 0), np.append(vel[self.N - 1:], 0)
         ]).T
+        # all_future_pos = 0.5 * self.DT * np.repeat(agent_vel, self.M * self.N) +\
+        #     self.casc_mat_pos_vel @ self.last_planned_traj_casc
+        # all_future_pos = np.array([
+        #     all_future_pos[:self.N * self.M], all_future_pos[self.N * self.M:]
+        # ]).T
+        # print("Agent future pos", all_future_pos.shape)
+        # print("Distances crowd member 1 and all future pos", np.linalg.norm(
+        #     crowd_poss[:, 1, :] - all_future_pos, axis=-1
+        # ))
+
+        # print("Distances crowd member 1 and all future pos", np.linalg.norm(
+        #     crowd_poss[:, 2, :] - all_future_pos, axis=-1
+        # ))
         self.last_planned_traj = action
+        # return action, all_future_pos
         return action
