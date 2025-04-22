@@ -29,6 +29,7 @@ class MPCVel(AbstractMPC):
             n_crowd,
         )
         self.stability_coeff = 0.25
+        self.avoid_crowd_coeff = 0.01
         self.plan_type = plan_type
 
         self.mat_pos_vel = scipy.linalg.toeplitz(
@@ -56,8 +57,23 @@ class MPCVel(AbstractMPC):
                 self.mat_pos_vel.T @ self.mat_pos_vel +
                 self.stability_coeff * np.eye(2 * (self.N - 1))
             )
-            self.vec_p = lambda _1, plan, _2, vel: \
-                (-plan + 0.5 * self.DT * np.repeat(vel, self.N)).T @ self.mat_pos_vel
+            # self.mat_Q = scipy.sparse.csc_matrix(
+            #     (1 - self.avoid_crowd_coff) * self.mat_pos_vel.T @ self.mat_pos_vel +
+            #     self.stability_coeff * np.eye(2 * (self.N - 1))
+            # )
+
+
+            def vec_p(_1, plan, _2, vel, crowd=None):
+                goal_obj = (-plan + 0.5 * self.DT * np.repeat(vel, self.N)).T @\
+                    self.mat_pos_vel
+
+                # far_crowd_obj = 0
+                # for member in np.moveaxis(crowd, 0, 1):
+                #     far_crowd_obj -= (
+                #         -member.flatten('F') + 0.5 * self.DT * np.repeat(vel, self.N)
+                #     ).T @ self.mat_pos_vel
+                # return goal_obj + self.avoid_crowd_coeff * far_crowd_obj
+                return goal_obj
         elif self.plan_type == "Velocity":
             self.mat_Q = scipy.sparse.csc_matrix(np.eye(2 * (self.N - 1)))
 
