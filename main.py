@@ -122,7 +122,11 @@ dataset = np.empty((
     steps,
     np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
 ))
-for i in tqdm(range(steps)):
+
+step_count = 0
+progress_bar = tqdm(total=steps, desc="Processing")
+count = step_count if gen_data else ep_count
+while count < steps:
     old_obs = obs[0].copy() if isinstance(obs, tuple) else obs.copy()
     obs = obs_handler(obs)
     if n_agents > 1:
@@ -134,6 +138,8 @@ for i in tqdm(range(steps)):
     # None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
     #     *planner.prepare_plot(plan, plan_steps)
     # )
+    # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
+    # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
     if n_agents > 1:
         control_plan = []
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
@@ -141,9 +147,11 @@ for i in tqdm(range(steps)):
         control_plan = np.array(control_plan).flatten()
     else:
         control_plan = mpc[0].get_action(plan, obs)[0]
+    step_count += 1
+    env.render() if render else None
     obs, reward, terminated, truncated, info = env.step(control_plan)
     if gen_data:
-        dataset[i] = np.hstack([
+        dataset[step_count] = np.hstack([
             old_obs.flatten(),
             obs.flatten(),
             control_plan[0].flatten(),
@@ -152,8 +160,6 @@ for i in tqdm(range(steps)):
             np.array(truncated)
         ])
     ep_return += reward
-    env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
-    env.render() if render else None
     if terminated or truncated:
         obs = env.reset()
         for i in range(n_agents):
@@ -161,6 +167,9 @@ for i in tqdm(range(steps)):
         returns.append(ep_return)
         ep_return = 0
         ep_count += 1
+        progress_bar.update(1) if not gen_data else None
+    progress_bar.update(1) if gen_data else None
+    count = step_count if gen_data else ep_count
 if gen_data:
     np.save("dataset_" + env_str + ".npy", dataset)
 print("Mean: ", np.mean(returns))
