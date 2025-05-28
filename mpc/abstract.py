@@ -96,7 +96,9 @@ class AbstractMPC:
 
         Does not support varying future velocities.
         """
-        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_vels.resize(
+            self.n_crowd, 2
+        ) if crowd_vels is not None else None
         crowd_vels = crowd_vels * 0 if crowd_vels is None else crowd_vels
         new_crowd_vels = []
         if self.uncertainty in ["dir", "vel"]:
@@ -106,28 +108,31 @@ class AbstractMPC:
             n_trajs = np.where(alphas > np.pi / 2, 5, 3)  # 3 traj if less then 90, else 5
             n_trajs = n_trajs.reshape(self.n_crowd)
             angles = alphas * (1 / (n_trajs - 1))
-            for i, vel in enumerate(crowd_vels):
-                for j in range(n_trajs[i]):
-                    angle = (j // 2 if j % 2 == 0 else - (j + 1) // 2) * angles[i]
-                    new_crowd_vels.append(np.array([
-                        np.cos(angle) * vel[0] - np.sin(angle) * vel[1],
-                        np.sin(angle) * vel[0] + np.cos(angle) * vel[1],
-                    ]))
+            all_dir_crowd_vels = np.repeat(crowd_vels, n_trajs, axis=0)
+            all_dir_angles = np.repeat(angles, n_trajs, axis=0)
 
+            # start from current angle (0) then remove alpha (-1) then add alpha (1)
+            # then for five remove twice alpha (-2) and add twice alpha (2)
+            mult_angles = np.array([0, -1, 1, -2, 2])
+            all_dir_angles *= np.concatenate([mult_angles[:i] for i in n_trajs])
+            dir_matrix = np.stack([
+                np.cos(all_dir_angles), -np.sin(all_dir_angles),
+                np.sin(all_dir_angles), np.cos(all_dir_angles)
+            ], axis=-1).reshape(len(all_dir_crowd_vels), 2, 2)
+
+            new_crowd_vels = np.einsum('ijk,ij->ij', dir_matrix, all_dir_crowd_vels)
             crowd_poss = np.repeat(crowd_poss, n_trajs, axis=0)
-            new_crowd_vels = np.array(new_crowd_vels)
             crowd_vels = new_crowd_vels
 
         if self.uncertainty == "vel":
             crowd_poss = np.repeat(crowd_poss, 3, axis=0)
             new_crowd_vels = np.repeat(crowd_vels, 3, axis=0)
-            for i in range(len(new_crowd_vels)):
-                if i % 3 == 0:
-                    continue
-                if i % 3 == 1:
-                    new_crowd_vels[i] -= np.linalg.norm(new_crowd_vels[i]) * 0.1
-                if i % 3 == 2:
-                    new_crowd_vels[i] += np.linalg.norm(new_crowd_vels[i]) * 0.1
+            uncertainty = np.stack([np.repeat(
+                np.array([0, self.AGENT_MAX_ACC, self.AGENT_MAX_ACC]) / np.sqrt(2) *
+                self.DT * np.array([1, 1, -1]),
+                len(crowd_vels)
+            )], axis=-1)
+            new_crowd_vels += uncertainty
             crowd_vels = new_crowd_vels
 
         return np.stack([crowd_poss] * self.N) + np.einsum(
