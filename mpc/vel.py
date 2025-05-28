@@ -133,7 +133,7 @@ class MPCVel(AbstractMPC):
 
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
-        for member in range(self.n_crowd):
+        for member in range(crowd_poss.shape[1]):
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
             if ignore:
                 continue

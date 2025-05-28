@@ -96,12 +96,15 @@ class AbstractMPC:
 
         Does not support varying future velocities.
         """
+        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_vels * 0 if crowd_vels is None else crowd_vels
         new_crowd_vels = []
         if self.uncertainty in ["dir", "vel"]:
             alphas = np.pi - 5 * np.pi / 6 * (
                 np.linalg.norm(crowd_vels, axis=-1) / self.AGENT_MAX_VEL
             )
             n_trajs = np.where(alphas > np.pi / 2, 5, 3)  # 3 traj if less then 90, else 5
+            n_trajs = n_trajs.reshape(self.n_crowd)
             angles = alphas * (1 / (n_trajs - 1))
             for i, vel in enumerate(crowd_vels):
                 for j in range(n_trajs[i]):
@@ -122,13 +125,11 @@ class AbstractMPC:
                 if i % 3 == 0:
                     continue
                 if i % 3 == 1:
-                    new_crowd_vels[i] -= np.linalg.norm(new_crowd_vels[i]) * 0.2
+                    new_crowd_vels[i] -= np.linalg.norm(new_crowd_vels[i]) * 0.1
                 if i % 3 == 2:
-                    new_crowd_vels[i] += np.linalg.norm(new_crowd_vels[i]) * 0.2
+                    new_crowd_vels[i] += np.linalg.norm(new_crowd_vels[i]) * 0.1
             crowd_vels = new_crowd_vels
 
-        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
-        crowd_vels = crowd_vels * 0 if crowd_vels is None else crowd_vels
         return np.stack([crowd_poss] * self.N) + np.einsum(
             'ijk,i->ijk',
             np.stack([crowd_vels] * self.N, 0) * self.DT,
