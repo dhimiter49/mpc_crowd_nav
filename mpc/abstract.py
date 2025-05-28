@@ -19,6 +19,7 @@ class AbstractMPC:
         agent_max_vel: float,
         agent_max_acc: float,
         n_crowd: int = 0,
+        uncertainty: str = "",
     ):
         self.N = horizon
         self.plan_horizon = self.N
@@ -31,6 +32,7 @@ class AbstractMPC:
         self.MAX_DIST_STOP = self.MAX_TIME_STOP ** 2 * self.AGENT_MAX_ACC * 0.5
         self.MAX_DIST_STOP_CROWD = 2 * self.MAX_DIST_STOP
         self.n_crowd = n_crowd
+        self.uncertainty = uncertainty
 
         self.circle_lin_sides = 8
         self.POLYGON_ACC_LINES = gen_polygon(self.AGENT_MAX_ACC, self.circle_lin_sides)
@@ -94,8 +96,39 @@ class AbstractMPC:
 
         Does not support varying future velocities.
         """
+        new_crowd_vels = []
+        if self.uncertainty in ["dir", "vel"]:
+            alphas = np.pi - 5 * np.pi / 6 * (
+                np.linalg.norm(crowd_vels, axis=-1) / self.AGENT_MAX_VEL
+            )
+            n_trajs = np.where(alphas > np.pi / 2, 5, 3)  # 3 traj if less then 90, else 5
+            angles = alphas * (1 / (n_trajs - 1))
+            for i, vel in enumerate(crowd_vels):
+                for j in range(n_trajs[i]):
+                    angle = (j // 2 if j % 2 == 0 else - (j + 1) // 2) * angles[i]
+                    new_crowd_vels.append(np.array([
+                        np.cos(angle) * vel[0] - np.sin(angle) * vel[1],
+                        np.sin(angle) * vel[0] + np.cos(angle) * vel[1],
+                    ]))
+
+            crowd_poss = np.repeat(crowd_poss, n_trajs, axis=0)
+            new_crowd_vels = np.array(new_crowd_vels)
+            crowd_vels = new_crowd_vels
+
+        if self.uncertainty == "vel":
+            crowd_poss = np.repeat(crowd_poss, 3, axis=0)
+            new_crowd_vels = np.repeat(crowd_vels, 3, axis=0)
+            for i in range(len(new_crowd_vels)):
+                if i % 3 == 0:
+                    continue
+                if i % 3 == 1:
+                    new_crowd_vels[i] -= np.linalg.norm(new_crowd_vels[i]) * 0.2
+                if i % 3 == 2:
+                    new_crowd_vels[i] += np.linalg.norm(new_crowd_vels[i]) * 0.2
+            crowd_vels = new_crowd_vels
+
         crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
-        crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
+        crowd_vels = crowd_vels * 0 if crowd_vels is None else crowd_vels
         return np.stack([crowd_poss] * self.N) + np.einsum(
             'ijk,i->ijk',
             np.stack([crowd_vels] * self.N, 0) * self.DT,

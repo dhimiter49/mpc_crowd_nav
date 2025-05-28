@@ -16,6 +16,7 @@ class MPCCascAcc(MPCAcc):
         n_crowd: int = 0,
         plan_type: str = "Position",
         plan_length: int = 20,
+        uncertainty: str = "",
     ):
         super().__init__(
             horizon,
@@ -25,6 +26,7 @@ class MPCCascAcc(MPCAcc):
             agent_max_vel,
             agent_max_acc,
             n_crowd,
+            uncertainty,
         )
         self.M = plan_length
         self.plan_horizon = self.M

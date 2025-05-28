@@ -18,6 +18,7 @@ class MPCAcc(AbstractMPC):
         agent_max_vel: float,
         agent_max_acc: float,
         n_crowd: int = 0,
+        uncertainty: str = "",
     ):
         super().__init__(
             horizon,
@@ -27,6 +28,7 @@ class MPCAcc(AbstractMPC):
             agent_max_vel,
             agent_max_acc,
             n_crowd,
+            uncertainty,
         )
         self.stability_coeff = 0.3
 

@@ -96,6 +96,10 @@ elif "-lp" in sys.argv or "-lpv" in sys.argv or "-vp" in sys.argv:
     mpc_type = MPC_DICT["-lp"]
 else:
     mpc_type = MPC_DICT["-d"]
+
+if "-u" in sys.argv:
+    mpc_kwargs["uncertainty"] = "vel"
+
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
 planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
@@ -105,13 +109,14 @@ mpc = [
         horizon=N,
         dt=DT,
         physical_space=env.get_wrapper_attr("PHYSICAL_SPACE"),
-        const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE") * 2 + 0.00001,
+        const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE") * 2 + 0.01001,
         agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
         agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
         n_crowd=env.get_wrapper_attr("n_crowd") if n_agents == 1 else
         env.get_wrapper_attr("n_crowd") - 1,
         **mpc_kwargs
-    ) for _ in range(n_agents)]
+    ) for _ in range(n_agents)
+]
 
 steps = 100000
 obs = env.reset()
