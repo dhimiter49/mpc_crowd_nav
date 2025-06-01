@@ -127,11 +127,10 @@ class AbstractMPC:
         if self.uncertainty == "vel":
             crowd_poss = np.repeat(crowd_poss, 3, axis=0)
             new_crowd_vels = np.repeat(crowd_vels, 3, axis=0)
-            uncertainty = np.stack([np.repeat(
+            uncertainty = np.stack([
                 np.array([0, self.AGENT_MAX_ACC, self.AGENT_MAX_ACC]) / np.sqrt(2) *
                 self.DT * np.array([1, 1, -1]),
-                len(crowd_vels)
-            )], axis=-1)
+            ] * len(crowd_vels)).reshape(-1, 1)
             new_crowd_vels += uncertainty
             crowd_vels = new_crowd_vels
 
