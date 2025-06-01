@@ -96,10 +96,8 @@ class AbstractMPC:
 
         Does not support varying future velocities.
         """
-        crowd_vels = crowd_vels.resize(
-            self.n_crowd, 2
-        ) if crowd_vels is not None else None
-        crowd_vels = crowd_vels * 0 if crowd_vels is None else crowd_vels
+        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         new_crowd_vels = []
         if self.uncertainty in ["dir", "vel"]:
             alphas = np.pi - 5 * np.pi / 6 * (
