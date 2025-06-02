@@ -199,7 +199,8 @@ class MPCCascVel(MPCVel):
         #     crowd_poss.reshape(self.n_crowd, 2), crowd_vels
         # )
         vel = self.core_mpc(plan, obs)
-        if vel is None:
+        breaking = vel is None
+        if breaking:
             # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
         else:
@@ -226,4 +227,4 @@ class MPCCascVel(MPCVel):
         # ))
         self.last_planned_traj = action
         # return action, all_future_pos
-        return action
+        return action, breaking

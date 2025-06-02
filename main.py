@@ -145,27 +145,34 @@ while count < steps:
     # )
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
+    breaking_flags = []
     if n_agents > 1:
-        control_plan = []
+        actions = []
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
-            control_plan.append(mpc[i].get_action(_plan, _obs)[0])
-        control_plan = np.array(control_plan).flatten()
+            control_plan, breaking_flag = mpc[i].get_action(_plan, _obs)
+            action = control_plan[0]
+            actions.append(action)
+            breaking_flags.append(breaking_flag)
+        actions = np.array(actions).flatten()
     else:
-        control_plan = mpc[0].get_action(plan, obs)[0]
+        control_plan, breaking_flag = mpc[0].get_action(plan, obs)
+        actions = control_plan[0]  # only one agent so only one action
+        breaking_flags.append(breaking_flag)
     step_count += 1
     env.render() if render else None
-    obs, reward, terminated, truncated, info = env.step(control_plan)
+    obs, reward, terminated, truncated, info = env.step(actions)
     if gen_data:
         dataset[step_count] = np.hstack([
             old_obs.flatten(),
             obs.flatten(),
-            control_plan[0].flatten(),
+            actions.flatten(),
             np.array(reward),
             np.array(terminated),
             np.array(truncated)
         ])
     ep_return += reward
     if terminated or truncated:
+        print("Breaking flags: ", breaking_flags)
         env.render() if render else None
         obs = env.reset()
         for i in range(n_agents):

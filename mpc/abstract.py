@@ -94,16 +94,38 @@ class AbstractMPC:
         Based on the current crowd positions and constant velocities it is possible to
         compute all future positions.
 
+        If the model is uncertain about the velocities of the crowd then additional
+        possible future velocities are added to the computation in order to copmute
+        multiple different future trajectories of crowd member.
+
+        Uncertainty is added in the direction of the given velocity and its absolute
+        value. If the velocity given as a ratio to the maximum velocity is between:
+            0 to 1/3, perturbations are mapped linearly between 2pi and pi/2
+            1/3 to 2/3, perturbations are mapped linearly between pi/2 and pi/4
+            2/3 to 1, perturbations are mapped linearly between pi/4 and pi/12
+        The ranges are discretized, 5 for the first case and three for the other two.
+        The speed is perturbed by the the given maximum acceleration, which means that
+        the current velocity is perturbed maximally by the max_acc x time_step and can be
+        either accelerating or decelerating. This means two more velocities are added.
+
         Does not support varying future velocities.
         """
         crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
         crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         new_crowd_vels = []
         if self.uncertainty in ["dir", "vel"]:
-            alphas = np.pi - 5 * np.pi / 6 * (
-                np.linalg.norm(crowd_vels, axis=-1) / self.AGENT_MAX_VEL
+            crowd_speeds_rel_max = np.linalg.norm(crowd_vels, axis=-1) /\
+                self.AGENT_MAX_VEL
+            alphas = np.where(
+                crowd_speeds_rel_max <= 2 / 3,
+                np.where(
+                    crowd_speeds_rel_max <= 1 / 3,
+                    2 * np.pi - 9 * np.pi / 2 * crowd_speeds_rel_max,
+                    3 * np.pi / 4 - 3 * np.pi / 4 * crowd_speeds_rel_max,
+                ),
+                7 * np.pi / 12 - np.pi / 2 * crowd_speeds_rel_max
             )
-            n_trajs = np.where(alphas > np.pi / 2, 5, 3)  # 3 traj if less then 90, else 5
+            n_trajs = np.where(alphas >= np.pi / 2, 5, 3)  # 3 traj if <= 90, else 5
             n_trajs = n_trajs.reshape(self.n_crowd)
             angles = alphas * (1 / (n_trajs - 1))
             all_dir_crowd_vels = np.repeat(crowd_vels, n_trajs, axis=0)

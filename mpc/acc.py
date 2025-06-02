@@ -132,7 +132,8 @@ class MPCAcc(AbstractMPC):
 
     def __call__(self, plan, obs):
         acc = self.core_mpc(plan, obs)
-        if acc is None:
+        breaking = acc is None
+        if breaking:
             # print("Executing last computed braking trajectory!")
             acc = np.zeros(2 * self.N)
             acc[0:self.N - 1] = self.last_planned_traj[1:, 0]
@@ -140,4 +141,4 @@ class MPCAcc(AbstractMPC):
 
         action = np.array([acc[:self.N], acc[self.N:]]).T
         self.last_planned_traj = action
-        return action
+        return action, breaking
