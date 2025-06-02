@@ -166,6 +166,7 @@ while count < steps:
         ])
     ep_return += reward
     if terminated or truncated:
+        env.render() if render else None
         obs = env.reset()
         for i in range(n_agents):
             mpc[i].reset()
