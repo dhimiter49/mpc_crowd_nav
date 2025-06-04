@@ -148,7 +148,7 @@ class MPCVel(AbstractMPC):
             vec_crowd = mat_crowd @ (
                 -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
             ) - np.array([self.CONST_DIST_CROWD] * self.N_crowd)
-            mat_crowd_control = -mat_crowd @ self.mat_pos_vel
+            mat_crowd_control = -mat_crowd @ self.mat_pos_vel_crowd
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
 
@@ -164,7 +164,7 @@ class MPCVel(AbstractMPC):
             mat_line = np.hstack([np.eye(self.N) * line[0], np.eye(self.N) * line[1]])
             limit = -mat_line @ (0.5 * self.DT * np.repeat(vel, self.N)) - line[2]
 
-            const_M.append(-mat_line @ self.mat_pos_vel_crowd)
+            const_M.append(-mat_line @ self.mat_pos_vel)
             const_b.append(-limit)
 
 
