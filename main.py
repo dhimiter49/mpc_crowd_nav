@@ -123,6 +123,7 @@ obs = env.reset()
 plan = np.zeros((N, 2))
 returns, ep_return, vels, action = [], 0, [], np.array([0, 0])
 ep_count = 0
+ep_step_count = 0
 dataset = np.empty((
     steps,
     np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
@@ -131,6 +132,8 @@ dataset = np.empty((
 step_count = 0
 progress_bar = tqdm(total=steps, desc="Processing")
 count = step_count if gen_data else ep_count
+old_breaking_flags = None
+breaking_steps = np.array([200] * n_agents)  # 200 is too high, no breaking traj
 while count < steps:
     old_obs = obs[0].copy() if isinstance(obs, tuple) else obs.copy()
     obs = obs_handler(obs)
@@ -145,19 +148,25 @@ while count < steps:
     # )
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
-    breaking_flags = []
+    breaking_flags = np.array([False] * n_agents)
     if n_agents > 1:
         actions = []
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
             control_plan, breaking_flag = mpc[i].get_action(_plan, _obs)
             action = control_plan[0]
             actions.append(action)
-            breaking_flags.append(breaking_flag)
+            breaking_flags[i] = breaking_flag
+            if old_breaking_flags is not None: # at least second step
+                if not old_breaking_flags[i] and breaking_flag:
+                    # before no breaking now breaking
+                    breaking_steps[i] = ep_step_count
+                if old_breaking_flags[i] and not breaking_flag:
+                    breaking_steps[i] *= -1  # (-) meaning that there was but not anymore
         actions = np.array(actions).flatten()
     else:
         control_plan, breaking_flag = mpc[0].get_action(plan, obs)
         actions = control_plan[0]  # only one agent so only one action
-        breaking_flags.append(breaking_flag)
+        breaking_flags[i] = breaking_flag
     step_count += 1
     env.render() if render else None
     obs, reward, terminated, truncated, info = env.step(actions)
@@ -171,8 +180,13 @@ while count < steps:
             np.array(truncated)
         ])
     ep_return += reward
+    ep_step_count += 1
+    old_breaking_flags = breaking_flags
     if terminated or truncated:
-        print("Breaking flags: ", breaking_flags)
+        # print("Breaking flags: ", breaking_flags)
+        # print("Breaking steps: ", breaking_steps)
+        breaking_steps = np.array([200] * n_agents)  # 200 is too high, no breaking traj
+        old_breaking_flags = None
         env.render() if render else None
         obs = env.reset()
         for i in range(n_agents):
@@ -180,6 +194,7 @@ while count < steps:
         returns.append(ep_return)
         ep_return = 0
         ep_count += 1
+        ep_step_count = 0
         progress_bar.update(1) if not gen_data else None
     progress_bar.update(1) if gen_data else None
     count = step_count if gen_data else ep_count
