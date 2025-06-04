@@ -44,6 +44,11 @@ class MPCVel(AbstractMPC):
             np.hstack([self.mat_pos_vel * 0, self.mat_pos_vel])
         ]).reshape(2 * self.N, 2 * (self.N - 1))
 
+        self.mat_pos_vel_crowd = np.concatenate([
+            self.mat_pos_vel[:self.N_crowd],
+            self.mat_pos_vel[self.N: self.N + self.N_crowd]
+        ])
+
         acc_from_vel = np.zeros(self.N)
         acc_from_vel[:2] = np.array([1, -1])
         self.mat_acc_vel = scipy.linalg.toeplitz(acc_from_vel, np.zeros(self.N)) / self.DT
@@ -138,11 +143,11 @@ class MPCVel(AbstractMPC):
             if ignore:
                 continue
             mat_crowd = np.hstack([
-                np.eye(self.N) * vec[:, 0], np.eye(self.N) * vec[:, 1]
+                np.eye(self.N_crowd) * vec[:, 0], np.eye(self.N_crowd) * vec[:, 1]
             ])
             vec_crowd = mat_crowd @ (
-                -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N)
-            ) - np.array([self.CONST_DIST_CROWD] * self.N)
+                -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
+            ) - np.array([self.CONST_DIST_CROWD] * self.N_crowd)
             mat_crowd_control = -mat_crowd @ self.mat_pos_vel
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
@@ -159,7 +164,7 @@ class MPCVel(AbstractMPC):
             mat_line = np.hstack([np.eye(self.N) * line[0], np.eye(self.N) * line[1]])
             limit = -mat_line @ (0.5 * self.DT * np.repeat(vel, self.N)) - line[2]
 
-            const_M.append(-mat_line @ self.mat_pos_vel)
+            const_M.append(-mat_line @ self.mat_pos_vel_crowd)
             const_b.append(-limit)
 
 
@@ -179,7 +184,7 @@ class MPCVel(AbstractMPC):
             vel = self.last_planned_traj[1:].flatten("F")
 
         action = np.array([
-            np.append(vel[:self.N - 1], 0), np.append(vel[self.N - 1:], 0)
+            np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
         ]).T
         self.last_planned_traj = action
         return action, breaking

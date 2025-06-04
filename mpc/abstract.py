@@ -20,9 +20,14 @@ class AbstractMPC:
         agent_max_acc: float,
         n_crowd: int = 0,
         uncertainty: str = "",
+        horizon_tries: int = 0,
+        horizon_crowd_pred: int = None,
     ):
         self.N = horizon
         self.plan_horizon = self.N
+        self.horizon_tries = horizon_tries
+        self.short_hor_only_crowd = True
+        self.N_crowd = self.N if horizon_crowd_pred is None else horizon_crowd_pred
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
         self.CONST_DIST_CROWD = const_dist_crowd
@@ -31,7 +36,7 @@ class AbstractMPC:
         self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
         self.MAX_DIST_STOP = self.MAX_TIME_STOP ** 2 * self.AGENT_MAX_ACC * 0.5
         self.MAX_DIST_STOP_CROWD = 2 * self.MAX_DIST_STOP
-        self.n_crowd = n_crowd
+        self.num_crowd = n_crowd
         self.uncertainty = uncertainty
 
         self.circle_lin_sides = 8
@@ -55,27 +60,33 @@ class AbstractMPC:
 
         # Constraints
         const_M, const_b = [], []
+        if self.num_crowd > 0:
+            crowd_poss = self.calculate_crowd_poss(
+                crowd_poss.reshape(self.num_crowd, 2), crowd_vels
+            )
+            self.gen_crowd_const(const_M, const_b, crowd_poss, vel)
+        crowd_const_dim = len(const_M)
         wall_eqs = self.wall_eq(walls)
         if len(wall_eqs) != 0:
             self.lin_pos_constraint(const_M, const_b, wall_eqs, vel)
+        wall_const_dim = len(const_M) - crowd_const_dim
         idxs = self.find_relevant_idxs(vel)
         const_M.append(self.mat_acc_const)
         const_b.append(self.vec_acc_const(vel))
         const_M.append(self.mat_vel_const(idxs))
         const_b.append(self.vec_vel_const(vel, idxs))
-        if self.n_crowd > 0:
-            crowd_poss = self.calculate_crowd_poss(
-                crowd_poss.reshape(self.n_crowd, 2), crowd_vels
-            )
-            self.gen_crowd_const(const_M, const_b, crowd_poss, vel)
+        acc_vel_const_dim = len(const_M) - crowd_const_dim - wall_const_dim
 
         term_const_M, term_const_b = self.terminal_const(vel)
 
-        return solve_qp(
+        opt_V = self.vec_p(goal, pos_plan, vel_plan, vel)
+        const_M = scipy.sparse.csr_matrix(np.vstack(const_M))
+        const_b = np.hstack(const_b)
+        solution = solve_qp(
             # self.mat_Q, self.vec_p(goal, pos_plan, vel_plan, vel, crowd_poss),
-            self.mat_Q, self.vec_p(goal, pos_plan, vel_plan, vel),
+            self.mat_Q, opt_V,
             # lb=-acc_b, ub=acc_b,
-            G=scipy.sparse.csc_matrix(np.vstack(const_M)), h=np.hstack(const_b),
+            G=const_M, h=const_b,
             A=term_const_M, b=term_const_b,
             solver="clarabel",
             # eps_abs=1e-4,
@@ -87,6 +98,58 @@ class AbstractMPC:
             tol_infeas_rel=5e-5,
             tol_ktratio=1e-4
         )
+
+        if solution is None and self.horizon_tries > 0:
+            horizon = self.N
+            full_dim = crowd_const_dim + wall_const_dim + acc_vel_const_dim
+            opt_Q = self.mat_Q.toarray() if not self.short_hor_only_crowd else self.mat_Q
+            short_dims = crowd_const_dim if self.short_hor_only_crowd else full_dim
+            while self.horizon_tries > 0:
+                shorten_by = horizon // 2
+                # print("Using a shorter crowd horizon of: ", horizon - shorten_by)
+                del_idx = list(np.array([
+                    np.arange(horizon - shorten_by, horizon) + horizon * i
+                    for i in range(0, short_dims)
+                ]).flatten())
+                const_M = np.delete(const_M.toarray(), del_idx, axis=0)
+                const_b = np.delete(const_b, del_idx, axis=0)
+
+                if not self.short_hor_only_crowd:
+                    # remove indeces from the objective
+                    obj_horizon = horizon - 1 if "Vel" in type(self).__name__ else horizon
+                    del_idx = list(np.array([
+                        np.arange(obj_horizon - shorten_by, obj_horizon) + obj_horizon * i
+                        for i in range(0, 2)  # 2 dims x and y
+                    ]).flatten())
+                    opt_Q = np.delete(opt_Q, del_idx, axis=0)
+                    opt_Q = np.delete(opt_Q, del_idx, axis=1)
+                    const_M = np.delete(const_M, del_idx, axis=1)
+                    opt_V = np.delete(opt_V, del_idx, axis=0)
+                    opt_Q = scipy.sparse.csr_matrix(opt_Q)
+
+                const_M = scipy.sparse.csr_matrix(const_M)
+
+                # try again with shorter crowd horizon
+                solution = solve_qp(
+                    opt_Q, opt_V,
+                    G=const_M, h=const_b,
+                    A=term_const_M, b=term_const_b,
+                    solver="clarabel",
+                    tol_gap_abs=5e-5,
+                    tol_gap_rel=5e-5,
+                    tol_feas=1e-4,
+                    tol_infeas_abs=5e-5,
+                    tol_infeas_rel=5e-5,
+                    tol_ktratio=1e-4
+                )
+                opt_Q = opt_Q.toarray() if not self.short_hor_only_crowd else opt_Q
+                if solution is not None:
+                    break
+                horizon -= shorten_by
+                self.horizon_tries -= 1
+            self.horizon_tries = 3
+
+        return solution
 
 
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
@@ -110,7 +173,7 @@ class AbstractMPC:
 
         Does not support varying future velocities.
         """
-        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
+        crowd_vels.resize(self.num_crowd, 2) if crowd_vels is not None else None
         crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         new_crowd_vels = []
         if self.uncertainty in ["dir", "vel"]:
@@ -126,7 +189,7 @@ class AbstractMPC:
                 7 * np.pi / 12 - np.pi / 2 * crowd_speeds_rel_max
             )
             n_trajs = np.where(alphas >= np.pi / 2, 5, 3)  # 3 traj if <= 90, else 5
-            n_trajs = n_trajs.reshape(self.n_crowd)
+            n_trajs = n_trajs.reshape(self.num_crowd)
             angles = alphas * (1 / (n_trajs - 1))
             all_dir_crowd_vels = np.repeat(crowd_vels, n_trajs, axis=0)
             all_dir_angles = np.repeat(angles, n_trajs, axis=0)
@@ -154,10 +217,10 @@ class AbstractMPC:
             new_crowd_vels += uncertainty
             crowd_vels = new_crowd_vels
 
-        return np.stack([crowd_poss] * self.N) + np.einsum(
+        return np.stack([crowd_poss] * self.N_crowd) + np.einsum(
             'ijk,i->ijk',
-            np.stack([crowd_vels] * self.N, 0) * self.DT,
-            np.arange(1, self.N + 1)
+            np.stack([crowd_vels] * self.N_crowd, 0) * self.DT,
+            np.arange(1, self.N_crowd + 1)
         )
 
 
