@@ -166,7 +166,7 @@ while count < steps:
     else:
         control_plan, breaking_flag = mpc[0].get_action(plan, obs)
         actions = control_plan[0]  # only one agent so only one action
-        breaking_flags[i] = breaking_flag
+        breaking_flags[0] = breaking_flag
     step_count += 1
     env.render() if render else None
     obs, reward, terminated, truncated, info = env.step(actions)
