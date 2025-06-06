@@ -3,10 +3,17 @@ import numpy as np
 from tqdm import tqdm
 import fancy_gym
 import gymnasium as gym
+import subprocess
+import multiprocessing as mp
+
 
 from mpc.factory import get_mpc
 from plan import Plan
 from obs_handler import ObsHandler
+import warnings
+
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 MPC_DICT = {
@@ -34,6 +41,7 @@ PLAN_DICT = {
 }
 
 
+result = subprocess.run(["git", "diff"], capture_output=True, text=True)
 gen_data = "-gd" in sys.argv
 
 velocity_str = "Vel" if "-v" in sys.argv else ""
@@ -129,6 +137,12 @@ dataset = np.empty((
     np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
 ))
 
+
+def mpc_get_action(mpc, plan, obs, q):
+    control_plan, breaking_flag = mpc.get_action(plan, obs)
+    q.put((control_plan, breaking_flag))
+
+
 step_count = 0
 progress_bar = tqdm(total=steps, desc="Processing")
 count = step_count if gen_data else ep_count
@@ -151,8 +165,21 @@ while count < steps:
     breaking_flags = np.array([False] * n_agents)
     if n_agents > 1:
         actions = []
+        output, processes, queues = [], [], []
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
-            control_plan, breaking_flag = mpc[i].get_action(_plan, _obs)
+            q = mp.Queue()
+            p = mp.Process(target=mpc_get_action, args=(mpc[i], _plan, _obs, q))
+            processes.append(p)
+            queues.append(q)
+            p.start()
+        for q in queues:
+            results = q.get()
+            output += results
+        for p in processes:
+            p.join()
+        for i in range(n_agents):
+            control_plan = output[i * 2]
+            breaking_flag = output[i * 2 + 1]
             action = control_plan[0]
             actions.append(action)
             breaking_flags[i] = breaking_flag
@@ -202,3 +229,4 @@ if gen_data:
     np.save("dataset_" + env_str + ".npy", dataset)
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
+print("Diffs: ", result.stdout)
