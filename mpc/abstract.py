@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 from qpsolvers import solve_qp
 import scipy
@@ -20,8 +21,10 @@ class AbstractMPC:
         agent_max_acc: float,
         n_crowd: int = 0,
         uncertainty: str = "",
+        radius_crowd: Union[list[float], None] = None,
+        radius: Union[float, None] = None,
         horizon_tries: int = 0,
-        horizon_crowd_pred: int = None,
+        horizon_crowd_pred: Union[int, None] = None,
     ):
         self.N = horizon
         self.plan_horizon = self.N
@@ -30,7 +33,15 @@ class AbstractMPC:
         self.N_crowd = self.N if horizon_crowd_pred is None else horizon_crowd_pred
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
-        self.CONST_DIST_CROWD = const_dist_crowd
+        if radius_crowd is not None:
+            assert radius is not None
+            self.radius_crowd = radius_crowd
+            self.radius = radius
+            # 0.01 takes care of the continuity in the real analog world while the
+            # collision are checked discretely in time
+            self.CONST_DIST_CROWD = np.array(radius_crowd) + radius + 0.01
+        else:
+            self.CONST_DIST_CROWD = const_dist_crowd
         self.AGENT_MAX_VEL = agent_max_vel
         self.AGENT_MAX_ACC = agent_max_acc
         self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
@@ -206,6 +217,7 @@ class AbstractMPC:
             new_crowd_vels = np.einsum('ijk,ij->ij', dir_matrix, all_dir_crowd_vels)
             crowd_poss = np.repeat(crowd_poss, n_trajs, axis=0)
             crowd_vels = new_crowd_vels
+            self.member_indeces = np.cumsum(n_trajs)
 
         if self.uncertainty == "vel":
             crowd_poss = np.repeat(crowd_poss, 3, axis=0)
@@ -216,6 +228,7 @@ class AbstractMPC:
             ] * len(crowd_vels)).reshape(-1, 1)
             new_crowd_vels += uncertainty
             crowd_vels = new_crowd_vels
+            self.member_indeces *= 3
 
         return np.stack([crowd_poss] * self.N_crowd) + np.einsum(
             'ijk,i->ijk',

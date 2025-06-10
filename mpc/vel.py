@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 import scipy
 
@@ -19,6 +20,8 @@ class MPCVel(AbstractMPC):
         n_crowd: int = 0,
         plan_type: str = "Position",
         uncertainty: str = "",
+        radius_crowd: Union[list[float], None] = None,
+        radius: Union[float, None] = None,
     ):
         super().__init__(
             horizon,
@@ -29,6 +32,8 @@ class MPCVel(AbstractMPC):
             agent_max_acc,
             n_crowd,
             uncertainty,
+            radius_crowd,
+            radius,
         )
         self.stability_coeff = 0.25
         self.avoid_crowd_coeff = 0.01
@@ -138,7 +143,12 @@ class MPCVel(AbstractMPC):
 
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
-        for member in range(crowd_poss.shape[1]):
+        for i, member in enumerate(range(crowd_poss.shape[1])):
+            if hasattr(self, "member_indeces"):
+                idx = np.where(i < self.member_indeces)[0][0]
+                dist_to_keep = self.CONST_DIST_CROWD[idx]
+            else:
+                dist_to_keep = self.CONST_DIST_CROWD
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
             if ignore:
                 continue
@@ -147,7 +157,7 @@ class MPCVel(AbstractMPC):
             ])
             vec_crowd = mat_crowd @ (
                 -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
-            ) - np.array([self.CONST_DIST_CROWD] * self.N_crowd)
+            ) - np.array([dist_to_keep] * self.N_crowd)
             mat_crowd_control = -mat_crowd @ self.mat_pos_vel_crowd
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
