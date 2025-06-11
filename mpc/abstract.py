@@ -214,7 +214,8 @@ class AbstractMPC:
             new_crowd_vels = np.einsum('ijk,ij->ij', dir_matrix, all_dir_crowd_vels)
             crowd_poss = np.repeat(crowd_poss, n_trajs, axis=0)
             crowd_vels = new_crowd_vels
-            self.member_indeces = np.cumsum(n_trajs)
+            if hasattr(self, "radius_crowd"):
+                self.member_indeces = np.cumsum(n_trajs)
 
         if self.uncertainty == "vel":
             crowd_poss = np.repeat(crowd_poss, 3, axis=0)
@@ -225,7 +226,8 @@ class AbstractMPC:
             ] * len(crowd_vels)).reshape(-1, 1)
             new_crowd_vels += uncertainty
             crowd_vels = new_crowd_vels
-            self.member_indeces *= 3
+            if hasattr(self, "radius_crowd"):
+                self.member_indeces *= 3
 
         return np.stack([crowd_poss] * self.N_crowd) + np.einsum(
             'ijk,i->ijk',
