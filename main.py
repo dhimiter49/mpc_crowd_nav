@@ -118,7 +118,6 @@ mpc = [
         dt=DT,
         physical_space=env.get_wrapper_attr("PHYSICAL_SPACE"),
         const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE") * 2 + 0.01001,
-        # radius=0.4,
         # radius_crowd=[0.4] * env.get_wrapper_attr("n_crowd"),
         agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
         agent_max_acc=env.get_wrapper_attr("MAX_ACC"),

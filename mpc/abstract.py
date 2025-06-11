@@ -22,7 +22,6 @@ class AbstractMPC:
         n_crowd: int = 0,
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
-        radius: Union[float, None] = None,
         horizon_tries: int = 0,
         horizon_crowd_pred: Union[int, None] = None,
     ):
@@ -34,12 +33,10 @@ class AbstractMPC:
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
         if radius_crowd is not None:
-            assert radius is not None
             self.radius_crowd = radius_crowd
-            self.radius = radius
             # 0.01 takes care of the continuity in the real analog world while the
             # collision are checked discretely in time
-            self.CONST_DIST_CROWD = np.array(radius_crowd) + radius + 0.01
+            self.CONST_DIST_CROWD = np.array(radius_crowd) + self.PHYSICAL_SPACE + 0.01
         else:
             self.CONST_DIST_CROWD = const_dist_crowd
         self.AGENT_MAX_VEL = agent_max_vel

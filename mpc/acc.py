@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 import scipy
 
@@ -20,7 +21,6 @@ class MPCAcc(AbstractMPC):
         n_crowd: int = 0,
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
-        radius: Union[float, None] = None,
     ):
         super().__init__(
             horizon,
@@ -32,7 +32,6 @@ class MPCAcc(AbstractMPC):
             n_crowd,
             uncertainty,
             radius_crowd,
-            radius,
         )
         self.stability_coeff = 0.3
 
