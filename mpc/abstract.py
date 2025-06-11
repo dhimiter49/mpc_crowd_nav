@@ -42,8 +42,9 @@ class AbstractMPC:
         self.AGENT_MAX_VEL = agent_max_vel
         self.AGENT_MAX_ACC = agent_max_acc
         self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
-        self.MAX_DIST_STOP = self.MAX_TIME_STOP ** 2 * self.AGENT_MAX_ACC * 0.5
-        self.MAX_DIST_STOP_CROWD = 2 * self.MAX_DIST_STOP
+        self.MAX_DIST_STOP = self.AGENT_MAX_VEL * self.MAX_TIME_STOP -\
+            0.5 * self.AGENT_MAX_ACC * self.MAX_TIME_STOP ** 2
+        self.MAX_DIST_STOP_CROWD = 4 * self.MAX_DIST_STOP
         self.num_crowd = n_crowd
         self.uncertainty = uncertainty
 
@@ -203,8 +204,8 @@ class AbstractMPC:
             all_dir_angles = np.repeat(angles, n_trajs, axis=0)
 
             # start from current angle (0) then remove alpha (-1) then add alpha (1)
-            # then for five remove twice alpha (-2) and add twice alpha (2)
-            mult_angles = np.array([0, -1, 1, -2, 2])
+            # then for five remove twice alpha (-2) and add twice alpha (2) ...
+            mult_angles = np.array([0, -1, 1, -2, 2, -3, 3, -4, 4])
             all_dir_angles *= np.concatenate([mult_angles[:i] for i in n_trajs])
             dir_matrix = np.stack([
                 np.cos(all_dir_angles), -np.sin(all_dir_angles),
@@ -289,7 +290,7 @@ class AbstractMPC:
         poss[zero_idx] += 1e-8
         vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
         dist = np.linalg.norm(poss, axis=-1)
-        angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 4
+        angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 2
         return poss, vec, (
             np.all(dist > self.MAX_DIST_STOP_CROWD) or
             (np.all(dist > self.MAX_DIST_STOP_CROWD / 2) and np.all(angle))
