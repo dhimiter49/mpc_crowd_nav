@@ -118,11 +118,17 @@ class MPCVel(AbstractMPC):
 
 
         def mat_vel_const(idxs):
-            return (M_v_.T * sgn_vel).T[idxs]
+            if idxs is None:
+                return (M_v_.T * sgn_vel).T
+            else:
+                return (M_v_.T * sgn_vel).T[idxs]
 
 
         def vec_vel_const(_, idxs):
-            return (sgn_vel * b_v_)[idxs]
+            if idxs is None:
+                return (sgn_vel * b_v_)
+            else:
+                return (sgn_vel * b_v_)[idxs]
 
 
         return mat_vel_const, vec_vel_const

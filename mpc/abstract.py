@@ -79,11 +79,11 @@ class AbstractMPC:
         if len(wall_eqs) != 0:
             self.lin_pos_constraint(const_M, const_b, wall_eqs, vel)
         wall_const_dim = len(const_M) - crowd_const_dim
-        idxs = self.find_relevant_idxs(vel)
+        # idxs = self.find_relevant_idxs(vel)
         const_M.append(self.mat_acc_const)
         const_b.append(self.vec_acc_const(vel))
-        const_M.append(self.mat_vel_const(idxs))
-        const_b.append(self.vec_vel_const(vel, idxs))
+        const_M.append(self.mat_vel_const(None))
+        const_b.append(self.vec_vel_const(vel, None))
         acc_vel_const_dim = len(const_M) - crowd_const_dim - wall_const_dim
 
         term_const_M, term_const_b = self.terminal_const(vel)
@@ -257,12 +257,16 @@ class AbstractMPC:
 
     def relevant_idxs(self, vel):
         """
+        !!! Use with caution, reachability of a velocity depends on acceleration !!!
+
         Relevant indexes when computing acceleration and velocity constraints. Based on
         the direction of the current velocity it is unecessary to add constraints to the
         qp-problem that address opposite directions. The relative indexes are defined as
         the three regions in which the current velocity falls in. In cases where the
         linearization of the velocity and acceleration constraint is split into 8 parts
         this means (360 / 8) * 3 = 135 degress are covered.
+        This is defined arbitrariyl and works for velocity of 3m/s and acceleration of
+        1.5m/s2.
         """
         angle = np.arctan2(vel[1], vel[0])
         angle = 2 * np.pi + angle if angle < 0 else angle
