@@ -16,7 +16,7 @@ class AbstractMPC:
         horizon: int,
         dt: float,
         physical_space: float,
-        const_dist_crowd: float,
+        const_dist_crowd: Union[float, list[float]],
         agent_max_vel: float,
         agent_max_acc: float,
         n_crowd: int = 0,
@@ -45,6 +45,17 @@ class AbstractMPC:
         self.MAX_DIST_STOP = self.AGENT_MAX_VEL * self.MAX_TIME_STOP -\
             0.5 * self.AGENT_MAX_ACC * self.MAX_TIME_STOP ** 2
         self.MAX_DIST_STOP_CROWD = 4 * self.MAX_DIST_STOP
+
+        if uncertainty == "dist":
+            if radius_crowd is not None:
+                self.CONST_DIST_CROWD = np.expand_dims(
+                    self.CONST_DIST_CROWD, -1
+                ).repeat(self.N_crowd, -1)
+            else:
+                self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd)
+            self.CONST_DIST_CROWD += self.AGENT_MAX_ACC * self.DT ** 2 *\
+                np.arange(1, self.N_crowd + 1)
+
         self.num_crowd = n_crowd
         self.uncertainty = uncertainty
 

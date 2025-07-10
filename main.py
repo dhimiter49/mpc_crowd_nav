@@ -109,6 +109,10 @@ else:
 
 if "-u" in sys.argv:
     mpc_kwargs["uncertainty"] = "vel"
+    if sys.argv[sys.argv.index("-u") + 1] == "vel":
+        mpc_kwargs["uncertainty"] = "vel"
+    if sys.argv[sys.argv.index("-u") + 1] == "dist":
+        mpc_kwargs["uncertainty"] = "dist"
 
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
 planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
