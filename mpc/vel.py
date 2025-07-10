@@ -21,6 +21,7 @@ class MPCVel(AbstractMPC):
         plan_type: str = "Position",
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
+        stability_coeff: float = 0.25,
     ):
         super().__init__(
             horizon,
@@ -33,7 +34,7 @@ class MPCVel(AbstractMPC):
             uncertainty,
             radius_crowd,
         )
-        self.stability_coeff = 0.25
+        self.stability_coeff = stability_coeff
         self.avoid_crowd_coeff = 0.01
         self.plan_type = plan_type
 

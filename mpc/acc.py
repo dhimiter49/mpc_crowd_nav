@@ -21,6 +21,7 @@ class MPCAcc(AbstractMPC):
         n_crowd: int = 0,
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
+        stability_coeff: float = 0.3,
     ):
         super().__init__(
             horizon,
@@ -33,7 +34,7 @@ class MPCAcc(AbstractMPC):
             uncertainty,
             radius_crowd,
         )
-        self.stability_coeff = 0.3
+        self.stability_coeff = stability_coeff
 
         self.vec_pos_vel = np.hstack([np.arange(1, self.N + 1)] * 2) * self.DT
 

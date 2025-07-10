@@ -17,6 +17,7 @@ class MPCCascAcc(MPCAcc):
         plan_type: str = "Position",
         plan_length: int = 20,
         uncertainty: str = "",
+        stability_coeff: float = 0.075,
     ):
         super().__init__(
             horizon,
@@ -31,6 +32,7 @@ class MPCCascAcc(MPCAcc):
         self.M = plan_length
         self.plan_horizon = self.M
         self.plan_type = plan_type
+        self.stability_coeff = stability_coeff
 
         self.casc_vec_pos_vel = np.hstack([
             np.hstack([np.arange(i, self.N + i) for i in range(1, self.M + 1)])
@@ -83,7 +85,6 @@ class MPCCascAcc(MPCAcc):
 
 
         if self.plan_type == "Position":
-            self.stability_coeff = 0.075
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.casc_mat_pos_acc_plan.T @ self.casc_mat_pos_acc_plan +
                 self.stability_coeff * self.casc_mat_vel_acc_plan.T @ \

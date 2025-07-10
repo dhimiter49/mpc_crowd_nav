@@ -163,6 +163,8 @@ class AbstractMPC:
 
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
         """
+        !!!Works in practice only for specific acceleration and velocity!!!
+
         Based on the current crowd positions and constant velocities it is possible to
         compute all future positions.
 

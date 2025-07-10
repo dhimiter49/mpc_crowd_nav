@@ -17,6 +17,7 @@ class MPCCascVel(MPCVel):
         plan_type: str = "Position",
         plan_length: int = 20,
         uncertainty: str = "",
+        stability_coeff: float = 0.2,
     ):
         super().__init__(
             horizon,
@@ -31,6 +32,7 @@ class MPCCascVel(MPCVel):
         self.M = plan_length
         self.plan_horizon = self.M
         self.plan_type = plan_type
+        self.stability_coeff = stability_coeff
 
         mat_pos_vel = self.mat_pos_vel[:self.N, :self.N - 1]
         self.casc_mat_pos_vel = np.zeros((self.M * self.N, self.M * (self.N - 1)))
@@ -78,7 +80,6 @@ class MPCCascVel(MPCVel):
 
 
         if self.plan_type == "Position":
-            self.stability_coeff = 0.2
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan +
                 self.stability_coeff * np.eye(2 * self.M * (self.N - 1))

@@ -88,6 +88,8 @@ elif "-vp" in sys.argv:
 elif "-lp" in sys.argv:
     plan_type = PLAN_DICT["-lp"]
     mpc_kwargs["plan_type"] = plan_type
+if "-sc" in sys.argv:
+    mpc_kwargs["stability_coeff"] = float(sys.argv[sys.argv.index("-sc") + 1])
 
 plan_steps = N
 if "-v" in sys.argv and "-cs" in sys.argv:
