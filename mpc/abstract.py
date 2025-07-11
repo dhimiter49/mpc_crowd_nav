@@ -46,7 +46,9 @@ class AbstractMPC:
             0.5 * self.AGENT_MAX_ACC * self.MAX_TIME_STOP ** 2
         self.MAX_DIST_STOP_CROWD = 4 * self.MAX_DIST_STOP
 
-        if uncertainty == "dist":
+        self.num_crowd = n_crowd
+        self.uncertainty = uncertainty
+        if self.uncertainty == "dist":
             if radius_crowd is not None:
                 self.CONST_DIST_CROWD = np.expand_dims(
                     self.CONST_DIST_CROWD, -1
@@ -55,9 +57,6 @@ class AbstractMPC:
                 self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd)
             self.CONST_DIST_CROWD += self.AGENT_MAX_ACC * self.DT ** 2 *\
                 np.arange(1, self.N_crowd + 1)
-
-        self.num_crowd = n_crowd
-        self.uncertainty = uncertainty
 
         self.circle_lin_sides = 8
         self.POLYGON_ACC_LINES = gen_polygon(self.AGENT_MAX_ACC, self.circle_lin_sides)
