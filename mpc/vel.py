@@ -149,7 +149,8 @@ class MPCVel(AbstractMPC):
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel):
         for i, member in enumerate(range(crowd_poss.shape[1])):
-            if len(self.CONST_DIST_CROWD.shape) >= 2 or hasattr(self, "member_indeces"):
+            if (not isinstance(self.CONST_DIST_CROWD, float) and
+                len(self.CONST_DIST_CROWD.shape) >= 2 or hasattr(self, "member_indeces")):
                 idx = i
                 if hasattr(self, "member_indeces"):
                     idx = np.where(i < self.member_indeces)[0][0]
