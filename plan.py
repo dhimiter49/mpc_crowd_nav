@@ -25,7 +25,7 @@ class Plan:
             oneD_steps = np.arange(
                 self.MAX_VEL * self.DT, dist, 2 * self.MAX_VEL * self.DT
             )
-        twoD_steps = np.array([i / dist * goal for i in oneD_steps])
+        twoD_steps = np.array([goal * i / dist for i in oneD_steps])
         n_steps = min(self.N, len(oneD_steps))
         steps[:n_steps, :] = twoD_steps[:n_steps]
         steps[n_steps:, :] += goal
