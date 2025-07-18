@@ -173,6 +173,10 @@ while count < steps:
     if n_agents > 1:
         actions = []
         output, processes, queues = [], [], []
+        # for i, (_plan, _obs) in enumerate(zip(plan, obs)):
+        #     control, breaking = mpc[i].get_action(_plan, _obs)
+        #     actions.append(control[0])
+        # actions = np.array(actions).flatten()
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
             q = mp.Queue()
             p = mp.Process(target=mpc_get_action, args=(mpc[i], _plan, _obs, q))
@@ -187,6 +191,7 @@ while count < steps:
         for i in range(n_agents):
             control_plan = output[i * 2]
             breaking_flag = output[i * 2 + 1]
+            mpc[i].last_planned_traj = control_plan
             action = control_plan[0]
             actions.append(action)
             breaking_flags[i] = breaking_flag

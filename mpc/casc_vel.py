@@ -226,6 +226,6 @@ class MPCCascVel(MPCVel):
         # print("Distances crowd member 1 and all future pos", np.linalg.norm(
         #     crowd_poss[:, 2, :] - all_future_pos, axis=-1
         # ))
-        self.last_planned_traj = action
+        self.last_planned_traj = action.copy()
         # return action, all_future_pos
         return action, breaking

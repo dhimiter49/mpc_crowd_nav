@@ -149,5 +149,5 @@ class MPCAcc(AbstractMPC):
             acc[self.N:2 * self.N - 1] = self.last_planned_traj[1:, 1]
 
         action = np.array([acc[:self.N], acc[self.N:]]).T
-        self.last_planned_traj = action
+        self.last_planned_traj = action.copy()
         return action, breaking

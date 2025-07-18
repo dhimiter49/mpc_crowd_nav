@@ -206,5 +206,5 @@ class MPCVel(AbstractMPC):
         action = np.array([
             np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
         ]).T
-        self.last_planned_traj = action
+        self.last_planned_traj = action.copy()
         return action, breaking
