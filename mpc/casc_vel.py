@@ -162,7 +162,7 @@ class MPCCascVel(MPCVel):
 
 
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
-        crowd_vels.resize(self.n_crowd, 2) if crowd_vels is not None else None
+        crowd_vels.resize(self.num_crowd, 2) if crowd_vels is not None else None
         crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         horizon_crowd_poss = np.stack([crowd_poss] * (self.N + self.M)) + np.einsum(
             'ijk,i->ijk',
@@ -178,7 +178,7 @@ class MPCCascVel(MPCVel):
         [1, 2,.., N, 2,..., N + 1, 3,..., M + N - 1, M + 1,..., M + N].
 
         Args:
-            crowd_poss (numpy.ndarray): an array of size (n_crowd, 2) with the current
+            crowd_poss (numpy.ndarray): an array of size (num_crowd, 2) with the current
                 positions of each member
         Return:
             (numpy.ndarray): the predicted positions of the crowd throughout the horizon
@@ -197,7 +197,7 @@ class MPCCascVel(MPCVel):
     def __call__(self, plan, obs):
         # goal, crowd_poss, agent_vel, crowd_vels, walls = obs
         # crowd_poss = self.calculate_crowd_poss(
-        #     crowd_poss.reshape(self.n_crowd, 2), crowd_vels
+        #     crowd_poss.reshape(self.num_crowd, 2), crowd_vels
         # )
         vel = self.core_mpc(plan, obs)
         breaking = vel is None

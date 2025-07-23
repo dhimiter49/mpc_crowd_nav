@@ -73,7 +73,15 @@ class AbstractMPC:
 
     def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
-        goal, crowd_poss, vel, crowd_vels, walls = obs
+        goal, crowd_poss, vel, crowd_vels, walls, radii = obs
+        if radii is not None:
+            self.PHYSICAL_SPACE = radii[0]
+            self.CONST_DIST_CROWD = self.PHYSICAL_SPACE + radii[1:]
+            self.CONST_DIST_CROWD = np.expand_dims(self.CONST_DIST_CROWD, -1).repeat(
+                self.N_crowd, -1
+            )
+            self.CONST_DIST_CROWD += self.AGENT_MAX_VEL * self.DT *\
+                np.arange(1, self.N_crowd + 1)
         vel_plan[:self.plan_horizon] -= vel[0]
         vel_plan[self.plan_horizon:] -= vel[1]
 
