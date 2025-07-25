@@ -34,9 +34,12 @@ class AbstractMPC:
         self.PHYSICAL_SPACE = physical_space
         if radius_crowd is not None:
             self.radius_crowd = radius_crowd
-            # 0.01 takes care of the continuity in the real analog world while the
-            # collision are checked discretely in time
-            self.CONST_DIST_CROWD = np.array(radius_crowd) + self.PHYSICAL_SPACE + 0.01
+            if np.all(radius_crowd == radius_crowd[0]):
+                self.CONST_DIST_CROWD = 2 * self.PHYSICAL_SPACE + 0.01001
+            else:
+                # 0.01 takes care of the continuity in the real analog world while the
+                # collision are checked discretely in time
+                self.CONST_DIST_CROWD = np.array(radius_crowd) + self.PHYSICAL_SPACE + 0.01
         else:
             self.CONST_DIST_CROWD = const_dist_crowd
         self.AGENT_MAX_VEL = agent_max_vel
@@ -74,14 +77,15 @@ class AbstractMPC:
     def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
         goal, crowd_poss, vel, crowd_vels, walls, radii = obs
-        if radii is not None:
+        if radii is not None and len(radii) != 0:
             self.PHYSICAL_SPACE = radii[0]
             self.CONST_DIST_CROWD = self.PHYSICAL_SPACE + radii[1:]
-            self.CONST_DIST_CROWD = np.expand_dims(self.CONST_DIST_CROWD, -1).repeat(
-                self.N_crowd, -1
-            )
-            self.CONST_DIST_CROWD += self.AGENT_MAX_VEL * self.DT *\
-                np.arange(1, self.N_crowd + 1)
+            if self.uncertainty == "dist":
+                self.CONST_DIST_CROWD = np.expand_dims(self.CONST_DIST_CROWD, -1).repeat(
+                    self.N_crowd, -1
+                )
+                self.CONST_DIST_CROWD += self.AGENT_MAX_VEL * self.DT *\
+                    np.arange(1, self.N_crowd + 1)
         vel_plan[:self.plan_horizon] -= vel[0]
         vel_plan[self.plan_horizon:] -= vel[1]
 

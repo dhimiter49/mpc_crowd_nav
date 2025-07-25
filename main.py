@@ -46,6 +46,7 @@ gen_data = "-gd" in sys.argv
 
 velocity_str = "Vel" if "-v" in sys.argv else ""
 env_str = ""
+crowd_shift_idx = 0
 if "-c" in sys.argv:
     env_type = ENV_DICT["-c"]
     env_str = "CrowdNavigationStatic%s-v0" % velocity_str
@@ -64,6 +65,7 @@ elif "-mco" in sys.argv:
 elif "-mci" in sys.argv:
     env_type = ENV_DICT["-mci"]
     env_str = "CrowdNavigationInter%s-v0" % velocity_str
+    crowd_shift_idx = 1
 else:
     env_type = ENV_DICT["-d"]
     env_str = "Navigation%s-v0" % velocity_str
@@ -122,9 +124,11 @@ mpc = [
         mpc_type,
         horizon=N,
         dt=DT,
-        physical_space=env.get_wrapper_attr("PHYSICAL_SPACE"),
-        const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE") * 2 + 0.01001,
-        # radius_crowd=[0.4] * env.get_wrapper_attr("n_crowd"),
+        physical_space=env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:][i],
+        const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE")[0] * 2 + 0.01001,
+        radius_crowd=np.delete(
+            env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:], i
+        ),
         agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
         agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
         n_crowd=env.get_wrapper_attr("n_crowd") if n_agents == 1 else
