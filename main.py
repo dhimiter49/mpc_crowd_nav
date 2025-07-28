@@ -134,7 +134,7 @@ mpc = [
         n_crowd=env.get_wrapper_attr("n_crowd") if n_agents == 1 else
         env.get_wrapper_attr("n_crowd") - 1,
         **mpc_kwargs
-    ) for _ in range(n_agents)
+    ) for i in range(n_agents)
 ]
 
 steps = 100000
