@@ -39,7 +39,8 @@ class AbstractMPC:
             else:
                 # 0.01 takes care of the continuity in the real analog world while the
                 # collision are checked discretely in time
-                self.CONST_DIST_CROWD = np.array(radius_crowd) + self.PHYSICAL_SPACE + 0.01
+                self.CONST_DIST_CROWD = np.array(radius_crowd) + self.PHYSICAL_SPACE +\
+                    0.01
         else:
             self.CONST_DIST_CROWD = const_dist_crowd
         self.AGENT_MAX_VEL = agent_max_vel
