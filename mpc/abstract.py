@@ -28,7 +28,7 @@ class AbstractMPC:
         self.N = horizon
         self.plan_horizon = self.N
         self.horizon_tries = horizon_tries
-        self.short_hor_only_crowd = True
+        self.short_hor_only_crowd = False
         self.N_crowd = self.N if horizon_crowd_pred is None else horizon_crowd_pred
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
