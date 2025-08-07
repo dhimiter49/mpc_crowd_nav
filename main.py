@@ -164,10 +164,13 @@ while count < steps:
     obs = obs_handler(obs)
     if n_agents > 1:
         plan = []
-        for _obs in obs:
+        crowd_poss = env.get_attr.get_wrapper_attr("_crowd_poss")
+        for i, _obs in enumerate(obs):
             plan.append(planner.plan(_obs))
+            mpc[i].current_pos = crowd_poss[i]
     else:
         plan = planner.plan(obs)
+        mpc[0].current_pos = env.get_wrapper_attr("_agent_pos")
     # None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
     #     *planner.prepare_plot(plan, plan_steps)
     # )

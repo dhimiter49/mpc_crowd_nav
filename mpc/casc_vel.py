@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 import scipy
 
@@ -17,6 +18,7 @@ class MPCCascVel(MPCVel):
         plan_type: str = "Position",
         plan_length: int = 20,
         uncertainty: str = "",
+        radius_crowd: Union[list[float], None] = None,
         stability_coeff: float = 0.2,
     ):
         super().__init__(
@@ -27,7 +29,8 @@ class MPCCascVel(MPCVel):
             agent_max_vel,
             agent_max_acc,
             n_crowd,
-            uncertainty,
+            uncertainty=uncertainty,
+            radius_crowd=radius_crowd,
         )
         self.M = plan_length
         self.plan_horizon = self.M

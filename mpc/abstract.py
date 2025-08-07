@@ -59,8 +59,9 @@ class AbstractMPC:
                 ).repeat(self.N_crowd, -1)
             else:
                 self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd)
-            self.CONST_DIST_CROWD += self.AGENT_MAX_ACC * self.DT ** 2 *\
-                np.arange(1, self.N_crowd + 1)
+            self.CONST_DIST_CROWD += max(
+                self.AGENT_MAX_VEL * self.DT, self.AGENT_MAX_ACC * self.DT ** 2
+            ) * np.arange(1, self.N_crowd + 1)
 
         self.circle_lin_sides = 8
         self.POLYGON_ACC_LINES = gen_polygon(self.AGENT_MAX_ACC, self.circle_lin_sides)
@@ -69,6 +70,9 @@ class AbstractMPC:
         self.vel_coeff = 0.2
         self.stability_coeff = 0.25
         self.last_planned_traj = np.zeros((self.N, 2))
+        self.current_pos = None
+        self.pos_horizon = None
+        self.last_pos = None
 
 
     def get_action(self, plan, obs):
@@ -362,3 +366,4 @@ class AbstractMPC:
 
     def reset(self):
         self.last_planned_traj *= 0
+        self.current_pos = None
