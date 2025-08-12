@@ -125,6 +125,7 @@ mpc = [
         horizon=N,
         dt=DT,
         physical_space=env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:][i],
+        # add 0.01 in order to account for continuous collision avoidance
         const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE")[0] * 2 + 0.01001,
         radius_crowd=np.delete(
             env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:], i
