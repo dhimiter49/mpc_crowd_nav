@@ -209,9 +209,9 @@ class MPCVel(AbstractMPC):
         action = np.array([
             np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
         ]).T
-        self.pos_horizon = np.repeat(self.current_pos, self.N) +\
-            0.5 * np.repeat(current_vel, self.N) * self.DT +\
-            self.mat_pos_vel @ action[:-1].flatten('F')
+        # self.pos_horizon = np.repeat(self.current_pos, self.N) +\
+        #     0.5 * np.repeat(current_vel, self.N) * self.DT +\
+        #     self.mat_pos_vel @ action[:-1].flatten('F')
         self.last_planned_traj = action.copy()
         self.last_pos = self.current_pos
         return action, breaking
