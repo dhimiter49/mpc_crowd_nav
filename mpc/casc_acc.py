@@ -18,6 +18,7 @@ class MPCCascAcc(MPCAcc):
         plan_length: int = 20,
         uncertainty: str = "",
         stability_coeff: float = 0.075,
+        horizon_tries: int = 0,
     ):
         super().__init__(
             horizon,

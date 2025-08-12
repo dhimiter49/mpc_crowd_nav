@@ -116,6 +116,10 @@ if "-u" in sys.argv:
     if sys.argv[sys.argv.index("-u") + 1] == "dist":
         mpc_kwargs["uncertainty"] = "dist"
 
+mpc_kwargs["horizon_tries"] = 0
+if "-ht" in sys.argv:
+    mpc_kwargs["horizon_tries"] = int(sys.argv[sys.argv.index("-ht") + 1])
+
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
 planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
@@ -203,7 +207,7 @@ while count < steps:
             action = control_plan[0]
             actions.append(action)
             breaking_flags[i] = breaking_flag
-            if old_breaking_flags is not None: # at least second step
+            if old_breaking_flags is not None:  # at least second step
                 if not old_breaking_flags[i] and breaking_flag:
                     # before no breaking now breaking
                     breaking_steps[i] = ep_step_count

@@ -17,6 +17,7 @@ class MPCLinear(MPCAcc):
         agent_max_acc: float,
         n_crowd: int = 0,
         plan_type: str = "Position",
+        horizon_tries: int = 0,
     ):
         super().__init__(
             horizon,
@@ -26,6 +27,7 @@ class MPCLinear(MPCAcc):
             agent_max_vel,
             agent_max_acc,
             n_crowd,
+            horizon_tries=horizon_tries,
         )
         self.plan_type = plan_type
 

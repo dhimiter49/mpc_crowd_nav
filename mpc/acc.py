@@ -22,6 +22,7 @@ class MPCAcc(AbstractMPC):
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
         stability_coeff: float = 0.3,
+        horizon_tries: int = 0,
     ):
         super().__init__(
             horizon,
@@ -33,6 +34,7 @@ class MPCAcc(AbstractMPC):
             n_crowd,
             uncertainty,
             radius_crowd,
+            horizon_tries=horizon_tries,
         )
         self.stability_coeff = stability_coeff
 
