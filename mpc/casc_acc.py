@@ -13,6 +13,8 @@ class MPCCascAcc(MPCAcc):
         const_dist_crowd: float,
         agent_max_vel: float,
         agent_max_acc: float,
+        crowd_max_vel: float,
+        crowd_max_acc: float,
         n_crowd: int = 0,
         plan_type: str = "Position",
         plan_length: int = 20,
@@ -27,6 +29,8 @@ class MPCCascAcc(MPCAcc):
             const_dist_crowd,
             agent_max_vel,
             agent_max_acc,
+            crowd_max_vel,
+            crowd_max_acc,
             n_crowd,
             uncertainty,
         )

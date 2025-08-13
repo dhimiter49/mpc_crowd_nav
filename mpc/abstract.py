@@ -19,6 +19,8 @@ class AbstractMPC:
         const_dist_crowd: Union[float, list[float]],
         agent_max_vel: float,
         agent_max_acc: float,
+        crowd_max_vel: float,
+        crowd_max_acc: float,
         n_crowd: int = 0,
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
@@ -45,10 +47,11 @@ class AbstractMPC:
             self.CONST_DIST_CROWD = const_dist_crowd
         self.AGENT_MAX_VEL = agent_max_vel
         self.AGENT_MAX_ACC = agent_max_acc
+        self.CROWD_MAX_VEL = crowd_max_vel
+        self.CROWD_MAX_ACC = crowd_max_acc
         self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
-        self.MAX_DIST_STOP = self.AGENT_MAX_VEL * self.MAX_TIME_STOP -\
-            0.5 * self.AGENT_MAX_ACC * self.MAX_TIME_STOP ** 2
-        self.MAX_DIST_STOP_CROWD = 4 * self.MAX_DIST_STOP
+        self.MAX_DIST_STOP = 2 * self.AGENT_MAX_VEL * self.MAX_TIME_STOP
+        self.MAX_DIST_STOP_CROWD = 6  # arbitrary, be careful on variable radii
 
         self.num_crowd = n_crowd
         self.uncertainty = uncertainty
@@ -60,7 +63,8 @@ class AbstractMPC:
             else:
                 self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd)
             self.CONST_DIST_CROWD += max(
-                self.AGENT_MAX_VEL * self.DT, self.AGENT_MAX_ACC * self.DT ** 2
+                self.AGENT_MAX_VEL * self.DT, self.AGENT_MAX_ACC * self.DT ** 2,
+                self.CROWD_MAX_VEL * self.DT, self.CROWD_MAX_ACC * self.DT ** 2
             ) * np.arange(1, self.N_crowd + 1)
 
         self.circle_lin_sides = 8

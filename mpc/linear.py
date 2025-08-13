@@ -15,6 +15,8 @@ class MPCLinear(MPCAcc):
         const_dist_crowd: float,
         agent_max_vel: float,
         agent_max_acc: float,
+        crowd_max_vel: float,
+        crowd_max_acc: float,
         n_crowd: int = 0,
         plan_type: str = "Position",
         horizon_tries: int = 0,
@@ -26,6 +28,8 @@ class MPCLinear(MPCAcc):
             const_dist_crowd,
             agent_max_vel,
             agent_max_acc,
+            crowd_max_vel,
+            crowd_max_acc,
             n_crowd,
             horizon_tries=horizon_tries,
         )

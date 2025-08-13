@@ -136,6 +136,8 @@ mpc = [
         ),
         agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
         agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
+        crowd_max_vel=env.get_wrapper_attr("CROWD_MAX_VEL"),
+        crowd_max_acc=env.get_wrapper_attr("MAX_ACC"),
         n_crowd=env.get_wrapper_attr("n_crowd") if n_agents == 1 else
         env.get_wrapper_attr("n_crowd") - 1,
         **mpc_kwargs
