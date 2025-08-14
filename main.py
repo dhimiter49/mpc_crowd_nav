@@ -1,4 +1,6 @@
 import sys
+import csv
+from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 import fancy_gym
@@ -47,6 +49,7 @@ gen_data = "-gd" in sys.argv
 velocity_str = "Vel" if "-v" in sys.argv else ""
 env_str = ""
 crowd_shift_idx = 0
+exp_name = "mpc" if "-n" not in sys.argv else sys.argv[sys.argv.index("-n") + 1]
 if "-c" in sys.argv:
     env_type = ENV_DICT["-c"]
     env_str = "CrowdNavigationStatic%s-v0" % velocity_str
@@ -256,3 +259,42 @@ if gen_data:
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
 print("Diffs: ", result.stdout)
+print("Stats:")
+(
+    col_rate,
+    col_speed,
+    col_agent_speed,
+    avg_intersect_area,
+    avg_intersect_area_percent,
+    freezing_instances,
+    avg_ttg,
+    success_rate
+) = env.stats()
+exp_name = exp_name + ".csv"
+path = Path.home() / "Documents" / "RAM" / "results" / exp_name
+has_header = False
+if path.is_file():
+    with open(path, 'r', newline='') as csvfile:
+        sniffer = csv.Sniffer()
+        has_header = sniffer.has_header(csvfile.read(2048))
+with open(path, 'a', newline='') as csvfile:
+    fieldnames = [
+        'return', 'ttg', 'success_rate',
+        'col_rate', 'col_speed', 'col_agent_speed',
+        'col_intersection_area', 'col_intersection_percent',
+        'freezing_instances'
+    ]
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    if not has_header:
+        writer.writeheader()
+    writer.writerow({
+        "return": np.mean(returns),
+        "ttg": avg_ttg,
+        "success_rate": success_rate,
+        "col_rate": col_rate,
+        "col_speed": col_speed,
+        "col_agent_speed": col_agent_speed,
+        "col_intersection_area": avg_intersect_area,
+        "col_intersection_percent": avg_intersect_area_percent,
+        "freezing_instances": freezing_instances,
+    })
