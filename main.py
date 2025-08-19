@@ -147,7 +147,7 @@ mpc = [
     ) for i in range(n_agents)
 ]
 
-steps = 100000
+steps = 1000 if not env.get_wrapper_attr("run_test_case") else 500
 obs = env.reset()
 plan = np.zeros((N, 2))
 returns, ep_return, vels, action = [], 0, [], np.array([0, 0])
@@ -174,7 +174,7 @@ while count < steps:
     obs = obs_handler(obs)
     if n_agents > 1:
         plan = []
-        crowd_poss = env.get_attr.get_wrapper_attr("_crowd_poss")
+        crowd_poss = env.get_wrapper_attr("_crowd_poss")
         for i, _obs in enumerate(obs):
             plan.append(planner.plan(_obs))
             mpc[i].current_pos = crowd_poss[i]
