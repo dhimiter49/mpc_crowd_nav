@@ -26,6 +26,7 @@ class AbstractMPC:
         radius_crowd: Union[list[float], None] = None,
         horizon_tries: int = 0,
         horizon_crowd_pred: Union[int, None] = None,
+        relax_uncertainty: float = 1.,  # from 0. (no relaxation) to 1. (full)
     ):
         self.N = horizon
         self.plan_horizon = self.N
@@ -55,7 +56,8 @@ class AbstractMPC:
 
         self.num_crowd = n_crowd
         self.uncertainty = uncertainty
-        if self.uncertainty == "dist":
+        self.relax_uncertainty = relax_uncertainty
+        if self.uncertainty == "dist" or self.uncertainty == "rdist":
             if radius_crowd is not None:
                 self.CONST_DIST_CROWD = np.expand_dims(
                     self.CONST_DIST_CROWD, -1
@@ -89,7 +91,7 @@ class AbstractMPC:
         if radii is not None and len(radii) != 0:
             self.PHYSICAL_SPACE = radii[0]
             self.CONST_DIST_CROWD = self.PHYSICAL_SPACE + radii[1:]
-            if self.uncertainty == "dist":
+            if self.uncertainty == "dist" or self.uncertainty == "rdist":
                 self.CONST_DIST_CROWD = np.expand_dims(self.CONST_DIST_CROWD, -1).repeat(
                     self.N_crowd, -1
                 )
@@ -104,7 +106,7 @@ class AbstractMPC:
             crowd_poss = self.calculate_crowd_poss(
                 crowd_poss.reshape(self.num_crowd, 2), crowd_vels
             )
-            self.gen_crowd_const(const_M, const_b, crowd_poss, vel)
+            self.gen_crowd_const(const_M, const_b, crowd_poss, vel, crowd_vels)
         crowd_const_dim = len(const_M)
         wall_eqs = self.wall_eq(walls)
         if len(wall_eqs) != 0:

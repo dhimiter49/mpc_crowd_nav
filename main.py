@@ -113,11 +113,9 @@ else:
     mpc_type = MPC_DICT["-d"]
 
 if "-u" in sys.argv:
-    mpc_kwargs["uncertainty"] = "vel"
-    if sys.argv[sys.argv.index("-u") + 1] == "vel":
-        mpc_kwargs["uncertainty"] = "vel"
-    if sys.argv[sys.argv.index("-u") + 1] == "dist":
-        mpc_kwargs["uncertainty"] = "dist"
+    mpc_kwargs["uncertainty"] = sys.argv[sys.argv.index("-u") + 1]
+if "-r" in sys.argv:
+    mpc_kwargs["relax_uncertainty"] = float(sys.argv[sys.argv.index("-r") + 1])
 
 mpc_kwargs["horizon_tries"] = 0
 if "-ht" in sys.argv:
@@ -244,9 +242,10 @@ while count < steps:
         breaking_steps = np.array([200] * n_agents)  # 200 is too high, no breaking traj
         old_breaking_flags = None
         env.render() if render else None
-        obs = env.reset()
-        for i in range(n_agents):
-            mpc[i].reset()
+        if not(ep_count == steps - 1 and env.get_wrapper_attr("run_test_case")):
+            obs = env.reset()
+            for i in range(n_agents):
+                mpc[i].reset()
         returns.append(ep_return)
         ep_return = 0
         ep_count += 1
@@ -266,6 +265,7 @@ print("Stats:")
     col_agent_speed,
     avg_intersect_area,
     avg_intersect_area_percent,
+    avg_col_severity,
     freezing_instances,
     avg_ttg,
     success_rate
@@ -282,7 +282,7 @@ with open(path, 'a', newline='') as csvfile:
         'return', 'ttg', 'success_rate',
         'col_rate', 'col_speed', 'col_agent_speed',
         'col_intersection_area', 'col_intersection_percent',
-        'freezing_instances'
+        'col_severity_index', 'freezing_instances'
     ]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     if not has_header:
@@ -296,5 +296,6 @@ with open(path, 'a', newline='') as csvfile:
         "col_agent_speed": col_agent_speed,
         "col_intersection_area": avg_intersect_area,
         "col_intersection_percent": avg_intersect_area_percent,
+        "col_severity_index": avg_col_severity,
         "freezing_instances": freezing_instances,
     })

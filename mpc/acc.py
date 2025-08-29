@@ -25,6 +25,7 @@ class MPCAcc(AbstractMPC):
         radius_crowd: Union[list[float], None] = None,
         stability_coeff: float = 0.3,
         horizon_tries: int = 0,
+        relax_uncertainty: float = 1.,
     ):
         super().__init__(
             horizon,
@@ -39,6 +40,7 @@ class MPCAcc(AbstractMPC):
             uncertainty,
             radius_crowd,
             horizon_tries=horizon_tries,
+            relax_uncertainty=relax_uncertainty,
         )
         self.stability_coeff = stability_coeff
 
@@ -99,7 +101,7 @@ class MPCAcc(AbstractMPC):
         return (M_a_.T * sgn_acc).T, vec_const
 
 
-    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel):
+    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel, crowd_vels=None):
         for i, member in enumerate(range(crowd_poss.shape[1])):
             if hasattr(self, "member_indeces"):
                 idx = np.where(i < self.member_indeces)[0][0]

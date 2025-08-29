@@ -21,6 +21,7 @@ class MPCCascAcc(MPCAcc):
         uncertainty: str = "",
         stability_coeff: float = 0.075,
         horizon_tries: int = 0,
+        relax_uncertainty: float = 1.,
     ):
         super().__init__(
             horizon,
@@ -33,6 +34,8 @@ class MPCCascAcc(MPCAcc):
             crowd_max_acc,
             n_crowd,
             uncertainty,
+            horizon_tries=horizon_tries,
+            relax_uncertainty=relax_uncertainty,
         )
         self.M = plan_length
         self.plan_horizon = self.M
@@ -121,7 +124,7 @@ class MPCCascAcc(MPCAcc):
         return vel_mat_const, vel_vec_const
 
 
-    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel):
+    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel, crowd_vels=None):
         for member in range(crowd_poss.shape[1]):
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
             if ignore:

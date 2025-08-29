@@ -23,6 +23,7 @@ class MPCCascVel(MPCVel):
         radius_crowd: Union[list[float], None] = None,
         stability_coeff: float = 0.2,
         horizon_tries: int = 0,
+        relax_uncertainty: float = 1.,
     ):
         super().__init__(
             horizon,
@@ -37,6 +38,7 @@ class MPCCascVel(MPCVel):
             uncertainty=uncertainty,
             radius_crowd=radius_crowd,
             horizon_tries=horizon_tries,
+            relax_uncertainty=relax_uncertainty,
         )
         self.M = plan_length
         self.plan_horizon = self.M
@@ -130,7 +132,7 @@ class MPCCascVel(MPCVel):
         self.last_planned_traj_casc = np.zeros((self.M * (self.N - 1) * 2))
 
 
-    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel):
+    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel, crowd_vels=None):
         for member in range(crowd_poss.shape[1]):
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
             if ignore:
