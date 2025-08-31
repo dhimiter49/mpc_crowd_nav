@@ -167,6 +167,7 @@ progress_bar = tqdm(total=steps, desc="Processing")
 count = step_count if gen_data else ep_count
 old_breaking_flags = None
 breaking_steps = np.array([200] * n_agents)  # 200 is too high, no breaking traj
+tot_breaking_steps = 0
 while count < steps:
     old_obs = obs[0].copy() if isinstance(obs, tuple) else obs.copy()
     obs = obs_handler(obs)
@@ -221,6 +222,8 @@ while count < steps:
         control_plan, breaking_flag = mpc[0].get_action(plan, obs)
         actions = control_plan[0]  # only one agent so only one action
         breaking_flags[0] = breaking_flag
+        if old_breaking_flags is not None:
+            tot_breaking_steps += 1 if breaking_flag and not old_breaking_flags[0] else 0
     step_count += 1
     env.render() if render else None
     obs, reward, terminated, truncated, info = env.step(actions)
@@ -258,6 +261,7 @@ if gen_data:
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
 print("Diffs: ", result.stdout)
+print("Total breaking instances: ", tot_breaking_steps)
 print("Stats:")
 (
     col_rate,
@@ -282,7 +286,7 @@ with open(path, 'a', newline='') as csvfile:
         'return', 'ttg', 'success_rate',
         'col_rate', 'col_speed', 'col_agent_speed',
         'col_intersection_area', 'col_intersection_percent',
-        'col_severity_index', 'freezing_instances'
+        'col_severity_index', 'breaking_instances', 'freezing_instances'
     ]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     if not has_header:
@@ -297,5 +301,6 @@ with open(path, 'a', newline='') as csvfile:
         "col_intersection_area": avg_intersect_area,
         "col_intersection_percent": avg_intersect_area_percent,
         "col_severity_index": avg_col_severity,
+        "breaking_instances": tot_breaking_steps,
         "freezing_instances": freezing_instances,
     })

@@ -166,7 +166,10 @@ class MPCVel(AbstractMPC):
                     idx = np.where(i < self.member_indeces)[0][0]
                 dist_to_keep = self.CONST_DIST_CROWD[idx]
             else:
-                dist_to_keep = self.CONST_DIST_CROWD.copy()
+                if isinstance(self.CONST_DIST_CROWD, np.ndarray):
+                    dist_to_keep = self.CONST_DIST_CROWD.copy()
+                else:
+                    dist_to_keep = self.CONST_DIST_CROWD
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
             if ignore:
                 continue
