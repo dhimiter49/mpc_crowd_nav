@@ -80,7 +80,8 @@ class Sample_Plan:
             samples_from_origin.append([])
             for last_sample in samples_from_origin[-2]:
                 samples_from_origin[-1].extend(
-                    last_sample + self.rot_matrices @ goal_dir * self.MAX_VEL * self.DT
+                    last_sample + self.rot_matrices @ goal_dir * 2 * self.MAX_VEL *
+                    self.DT
                 )
         if self.N > traj_steps // 2:
             for _ in range(int(traj_steps // 2)):
@@ -102,12 +103,12 @@ class Sample_Plan:
         trajectories = trajectories[:, 1:, :]
         reward = self.objecive_function(trajectories, goal, crowd_poss, crowd_vels)
 
-        pos_traj = trajectories[np.argmax(reward)].flatten()
+        pos_traj = trajectories[np.argmax(reward)].flatten('F')
         return pos_traj, np.zeros(pos_traj.shape)
 
 
     def objecive_function(self, trajectories, goal, crowd_poss, crowd_vels):
-        dist_goal = np.sum(np.linalg.norm(trajectories, axis=-1), axis=-1)
+        dist_goal = -np.sum(np.linalg.norm(trajectories - goal, axis=-1), axis=-1)
         crowd_poss = crowd_poss.reshape(-1, 2)
         crowd_vels = crowd_vels.reshape(-1, 2)
         crowd_poss = np.stack([crowd_poss] * self.N) + np.einsum(
@@ -119,7 +120,7 @@ class Sample_Plan:
         diff_crowd = np.repeat(trajectories, len(crowd_poss), axis=1).reshape(
             trajectories.shape[0], len(crowd_poss), self.N, 2
         ) - crowd_poss
-        dist_crowd = 0.0 * np.sum(np.linalg.norm(diff_crowd, axis=-1), axis=(-1, -2))
+        dist_crowd = 0.1 * np.sum(np.linalg.norm(diff_crowd, axis=-1), axis=(-1, -2))
 
         reward = dist_goal + dist_crowd
         return reward
