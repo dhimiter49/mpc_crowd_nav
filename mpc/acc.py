@@ -87,7 +87,7 @@ class MPCAcc(AbstractMPC):
 
 
         def vel_mat_const(idxs):
-            return ((M_v_ @ self.mat_vel_acc).T * sgn_vel).T[idxs]
+            return ((M_v_ @ self.mat_vel_acc).T * sgn_vel).T[idxs].squeeze()
 
         return vel_mat_const, vel_vec_const
 

@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 from mpc.acc import MPCAcc
 import scipy
@@ -18,6 +19,9 @@ class MPCLinear(MPCAcc):
         crowd_max_vel: float,
         crowd_max_acc: float,
         n_crowd: int = 0,
+        uncertainty: str = "",
+        radius_crowd: Union[list[float], None] = None,
+        stability_coeff: float = 0.25,
         plan_type: str = "Position",
         horizon_tries: int = 0,
     ):
@@ -31,12 +35,14 @@ class MPCLinear(MPCAcc):
             crowd_max_vel,
             crowd_max_acc,
             n_crowd,
+            uncertainty,
+            radius_crowd,
             horizon_tries=horizon_tries,
         )
         self.plan_type = plan_type
+        self.stability_coeff = stability_coeff
 
         if self.plan_type == "PositionVelocity":
-            self.stability_coeff = 0.26
             self.vel_coeff = 0.2
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.mat_pos_acc.T @ self.mat_pos_acc +
