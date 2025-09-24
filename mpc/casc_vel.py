@@ -16,7 +16,6 @@ class MPCCascVel(MPCVel):
         agent_max_acc: float,
         crowd_max_vel: float,
         crowd_max_acc: float,
-        n_crowd: int = 0,
         plan_type: str = "Position",
         plan_length: int = 20,
         uncertainty: str = "",
@@ -34,7 +33,6 @@ class MPCCascVel(MPCVel):
             agent_max_acc,
             crowd_max_vel,
             crowd_max_acc,
-            n_crowd,
             uncertainty=uncertainty,
             radius_crowd=radius_crowd,
             horizon_tries=horizon_tries,
@@ -173,7 +171,7 @@ class MPCCascVel(MPCVel):
 
 
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
-        crowd_vels.resize(self.num_crowd, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_vels.reshape(-1, 2) if crowd_vels is not None else None
         crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         horizon_crowd_poss = np.stack([crowd_poss] * (self.N + self.M)) + np.einsum(
             'ijk,i->ijk',
@@ -208,7 +206,7 @@ class MPCCascVel(MPCVel):
     def __call__(self, plan, obs):
         # goal, crowd_poss, agent_vel, crowd_vels, walls = obs
         # crowd_poss = self.calculate_crowd_poss(
-        #     crowd_poss.reshape(self.num_crowd, 2), crowd_vels
+        #     crowd_poss.reshape(-1, 2), crowd_vels
         # )
         vel = self.core_mpc(plan, obs)
         breaking = vel is None

@@ -21,7 +21,6 @@ class AbstractMPC:
         agent_max_acc: float,
         crowd_max_vel: float,
         crowd_max_acc: float,
-        n_crowd: int = 0,
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
         horizon_tries: int = 0,
@@ -54,7 +53,6 @@ class AbstractMPC:
         self.MAX_DIST_STOP = 2 * self.AGENT_MAX_VEL * self.MAX_TIME_STOP
         self.MAX_DIST_STOP_CROWD = 6  # arbitrary, be careful on variable radii
 
-        self.num_crowd = n_crowd
         self.uncertainty = uncertainty
         self.relax_uncertainty = relax_uncertainty
         if self.uncertainty == "dist" or self.uncertainty == "rdist":
@@ -102,9 +100,9 @@ class AbstractMPC:
 
         # Constraints
         const_M, const_b = [], []
-        if self.num_crowd > 0:
+        if crowd_poss is not None:
             crowd_poss = self.calculate_crowd_poss(
-                crowd_poss.reshape(self.num_crowd, 2), crowd_vels
+                crowd_poss.reshape(-1, 2), crowd_vels
             )
             self.gen_crowd_const(const_M, const_b, crowd_poss, vel, crowd_vels)
         crowd_const_dim = len(const_M)
@@ -217,7 +215,7 @@ class AbstractMPC:
 
         Does not support varying future velocities.
         """
-        crowd_vels.resize(self.num_crowd, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_vels.reshape(-1, 2) if crowd_vels is not None else None
         crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         new_crowd_vels = []
         if self.uncertainty in ["dir", "vel"]:
@@ -233,7 +231,7 @@ class AbstractMPC:
                 7 * np.pi / 12 - np.pi / 2 * crowd_speeds_rel_max
             )
             n_trajs = np.where(alphas >= np.pi / 2, 5, 3)  # 3 traj if <= 90, else 5
-            n_trajs = n_trajs.reshape(self.num_crowd)
+            n_trajs = n_trajs.reshape(-1)
             angles = alphas * (1 / (n_trajs - 1))
             all_dir_crowd_vels = np.repeat(crowd_vels, n_trajs, axis=0)
             all_dir_angles = np.repeat(angles, n_trajs, axis=0)
