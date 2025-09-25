@@ -2,6 +2,12 @@ import numpy as np
 
 
 class ObsHandler:
+    """
+    Depending on the environment return this values:
+        goal position, crowd positions, agent velocity, crowd velocities, wall distances,
+        crowd radiuses
+    In case that the information is missing for the environment then return None
+    """
     def __init__(self, env_type: str, n_crowd: int = 0):
         self.env_type = env_type
         self.n_inter_crowd = (n_crowd - 1) * 2

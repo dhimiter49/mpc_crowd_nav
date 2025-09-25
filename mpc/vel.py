@@ -219,8 +219,8 @@ class MPCVel(AbstractMPC):
     def __call__(self, plan, obs):
         vel = self.core_mpc(plan, obs)
         _, _, current_vel, _, _, _ = obs
-        breaking = vel is None
-        if breaking:
+        braking = vel is None
+        if braking:
             # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
 
@@ -232,4 +232,4 @@ class MPCVel(AbstractMPC):
         #     self.mat_pos_vel @ action[:-1].flatten('F')
         self.last_planned_traj = action.copy()
         self.last_pos = self.current_pos
-        return action, breaking
+        return action, braking

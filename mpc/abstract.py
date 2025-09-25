@@ -25,8 +25,26 @@ class AbstractMPC:
         radius_crowd: Union[list[float], None] = None,
         horizon_tries: int = 0,
         horizon_crowd_pred: Union[int, None] = None,
-        relax_uncertainty: float = 1.,  # from 0. (no relaxation) to 1. (full)
+        relax_uncertainty: float = 1.,
     ):
+        """
+        Args:
+            physical_space: the radius of the robot
+            const_dist_crowd: distance to keep to other members of the crowd, either
+                constant, same for everyone or a list, different for everyon
+            uncertainty: enums of strings, 'dir' only direction varies, 'vel' direction
+                and speed varies, 'dist' calculates only based on distance, 'rdist'
+                relaxed distance that lowers the distance for steps in the future
+            radius_crowd: radii of the different members of the crowd
+            horizon_tire: if a solution is not found with the current horizon it might
+                mean that there are too many constraints, by lowering the horizon it is
+                possible to find a solution
+            horizon_crowd_pred: this only lowers the horizon for the crowd constraints and
+                not the objective or the other constraints
+            relax_uncertainty: if uncertainty is "rdist" than choose the factor for which
+                to relax it, 0 no relaxation and 1 is no ucertainty
+        """
+        # vars
         self.N = horizon
         self.plan_horizon = self.N
         self.horizon_tries = horizon_tries
@@ -34,6 +52,15 @@ class AbstractMPC:
         self.N_crowd = self.N if horizon_crowd_pred is None else horizon_crowd_pred
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
+        self.AGENT_MAX_VEL = agent_max_vel
+        self.AGENT_MAX_ACC = agent_max_acc
+        self.CROWD_MAX_VEL = crowd_max_vel
+        self.CROWD_MAX_ACC = crowd_max_acc
+        self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
+        self.MAX_DIST_STOP = 2 * self.AGENT_MAX_VEL * self.MAX_TIME_STOP
+        self.MAX_DIST_STOP_CROWD = 6  # arbitrary, be careful on variable radii
+
+        # different constant distance crowd depending on different radii
         if radius_crowd is not None:
             self.radius_crowd = radius_crowd
             if np.all(radius_crowd == radius_crowd[0]):
@@ -45,14 +72,9 @@ class AbstractMPC:
                     0.01
         else:
             self.CONST_DIST_CROWD = const_dist_crowd
-        self.AGENT_MAX_VEL = agent_max_vel
-        self.AGENT_MAX_ACC = agent_max_acc
-        self.CROWD_MAX_VEL = crowd_max_vel
-        self.CROWD_MAX_ACC = crowd_max_acc
-        self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
-        self.MAX_DIST_STOP = 2 * self.AGENT_MAX_VEL * self.MAX_TIME_STOP
-        self.MAX_DIST_STOP_CROWD = 6  # arbitrary, be careful on variable radii
 
+        # if considering uncertainty then need to change the safety distances during the
+        # future trajectory
         self.uncertainty = uncertainty
         self.relax_uncertainty = relax_uncertainty
         if self.uncertainty == "dist" or self.uncertainty == "rdist":
@@ -67,12 +89,12 @@ class AbstractMPC:
                 self.CROWD_MAX_VEL * self.DT, self.CROWD_MAX_ACC * self.DT ** 2
             ) * np.arange(1, self.N_crowd + 1)
 
+        # linearization of the acceleration and velocity limits
         self.circle_lin_sides = 8
         self.POLYGON_ACC_LINES = gen_polygon(self.AGENT_MAX_ACC, self.circle_lin_sides)
         self.POLYGON_VEL_LINES = gen_polygon(self.AGENT_MAX_VEL, self.circle_lin_sides)
 
-        self.vel_coeff = 0.2
-        self.stability_coeff = 0.25
+        # other vars
         self.last_planned_traj = np.zeros((self.N, 2))
         self.current_pos = None
         self.pos_horizon = None
@@ -86,6 +108,9 @@ class AbstractMPC:
     def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
         goal, crowd_poss, vel, crowd_vels, walls, radii = obs
+
+        # Read the radii again, maybe they have changed, in that case,
+        # update the safety distances
         if radii is not None and len(radii) != 0:
             self.PHYSICAL_SPACE = radii[0]
             self.CONST_DIST_CROWD = self.PHYSICAL_SPACE + radii[1:]
@@ -119,6 +144,7 @@ class AbstractMPC:
 
         term_const_M, term_const_b = self.terminal_const(vel)
 
+        # QP solver
         opt_V = self.vec_p(goal, pos_plan, vel_plan, vel)
         const_M = scipy.sparse.csr_matrix(np.vstack(const_M))
         const_b = np.hstack(const_b)
@@ -139,6 +165,7 @@ class AbstractMPC:
             tol_ktratio=1e-4
         )
 
+        # Shorten horizon main loop
         if solution is None and self.horizon_tries > 0:
             horizon = self.N
             full_dim = crowd_const_dim + wall_const_dim + acc_vel_const_dim
@@ -189,15 +216,30 @@ class AbstractMPC:
                 self.horizon_tries -= 1
             self.horizon_tries = 3
 
-        return solution
+        return solution  # control plan
 
 
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
         """
-        !!!Works in practice only for specific acceleration and velocity!!!
-
         Based on the current crowd positions and constant velocities it is possible to
         compute all future positions.
+        """
+        crowd_vels = crowd_vels.reshape(-1, 2) if crowd_vels is not None else None
+        crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
+
+        crowd_poss, crowd_vels = self.vel_uncertainty(crowd_poss, crowd_vels)
+
+        # propagate position in the future based on the currrent position and current vel
+        return np.stack([crowd_poss] * self.N_crowd) + np.einsum(
+            'ijk,i->ijk',
+            np.stack([crowd_vels] * self.N_crowd, 0) * self.DT,
+            np.arange(1, self.N_crowd + 1)
+        )
+
+
+    def vel_uncertainty(self, crowd_poss, crowd_vels):
+        """
+        !!!Works in practice only for specific acceleration and velocity!!!
 
         If the model is uncertain about the velocities of the crowd then additional
         possible future velocities are added to the computation in order to copmute
@@ -215,8 +257,6 @@ class AbstractMPC:
 
         Does not support varying future velocities.
         """
-        crowd_vels = crowd_vels.reshape(-1, 2) if crowd_vels is not None else None
-        crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
         new_crowd_vels = []
         if self.uncertainty in ["dir", "vel"]:
             crowd_speeds_rel_max = np.linalg.norm(crowd_vels, axis=-1) /\
@@ -263,11 +303,7 @@ class AbstractMPC:
             if hasattr(self, "radius_crowd"):
                 self.member_indeces *= 3
 
-        return np.stack([crowd_poss] * self.N_crowd) + np.einsum(
-            'ijk,i->ijk',
-            np.stack([crowd_vels] * self.N_crowd, 0) * self.DT,
-            np.arange(1, self.N_crowd + 1)
-        )
+        return crowd_poss, crowd_vels
 
 
     def wall_eq(self, wall_dist):
