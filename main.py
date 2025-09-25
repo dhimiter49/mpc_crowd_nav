@@ -19,11 +19,11 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 
 MPC_DICT = {
-    "-d": "simple",
-    "-lp": "linear_plan",
-    "-v": "velocity_control",
-    "-cs": "cascading",
-    "-vcs": "velocity_control_cascading"
+    "-d": "simple",  # simple plan just minimizes all future distances to the goal
+    "-lp": "linear_plan",  # straight line to goal with sampling distance based on max vel
+    "-v": "velocity_control",  # linea_plan byt with velocity as control
+    "-cs": "cascading",  # linear_plan for cascading MPC
+    "-vcs": "velocity_control_cascading"  # linear_plan with vel control for cascading MPC
 }
 
 ENV_DICT = {
@@ -37,15 +37,16 @@ ENV_DICT = {
 }
 
 PLAN_DICT = {
-    "-lp": "Position",
-    "-lpv": "PositionVelocity",
-    "-vp": "Velocity",
+    "-lp": "Position",  # Objective (based on reference plan) uses only positions
+    "-lpv": "PositionVelocity",  # Objective uses positions and velocities
+    "-vp": "Velocity",  # Objective uses only velocities
 }
 
 
-result = subprocess.run(["git", "diff"], capture_output=True, text=True)
-gen_data = "-gd" in sys.argv
+# result = subprocess.run(["git", "diff"], capture_output=True, text=True)
 
+###############################  READING INPUT PARAMETERS  ###############################
+gen_data = "-gd" in sys.argv  # option to generate data from MPC
 velocity_str = "Vel" if "-v" in sys.argv else ""
 env_str = ""
 crowd_shift_idx = 0
@@ -82,6 +83,8 @@ N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
 M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 DT = env.unwrapped.dt
 
+
+####################################  SETTING UP MPC #####################################
 mpc_kwargs = {}
 plan_type = ""
 if "-lpv" in sys.argv:
@@ -143,32 +146,37 @@ mpc = [
     ) for i in range(n_agents)
 ]
 
+
+def mpc_get_action(mpc, plan, obs, q):
+    # Function that just runs an MPC step, used as target for multiprocessing
+    control_plan, braking_flag = mpc.get_action(plan, obs)
+    q.put((control_plan, braking_flag))
+
+
+#########################  ENVIRONMENT SETUP AND AUXILIARY VARS ##########################
 steps = 1000 if not env.get_wrapper_attr("run_test_case") else 500
+dataset = np.empty((
+    steps,
+    np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
+)) if gen_data else None
 obs = env.reset()
 plan = np.zeros((N, 2))
 returns, ep_return, vels, action = [], 0, [], np.array([0, 0])
 ep_count = 0
 ep_step_count = 0
-dataset = np.empty((
-    steps,
-    np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
-))
-
-
-def mpc_get_action(mpc, plan, obs, q):
-    control_plan, breaking_flag = mpc.get_action(plan, obs)
-    q.put((control_plan, breaking_flag))
-
-
 step_count = 0
-progress_bar = tqdm(total=steps, desc="Processing")
+tot_braking_steps = 0
 count = step_count if gen_data else ep_count
-old_breaking_flags = None
-breaking_steps = np.array([200] * n_agents)  # 200 is too high, no breaking traj
-tot_breaking_steps = 0
+old_braking_flags = None
+braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
+progress_bar = tqdm(total=steps, desc="Processing")
+
+# Main loop
 while count < steps:
     old_obs = obs[0].copy() if isinstance(obs, tuple) else obs.copy()
-    obs = obs_handler(obs)
+    obs = obs_handler(obs)  # change observation to necessary format for mpc
+
+    # get plan(s)
     if n_agents > 1:
         plan = []
         crowd_poss = env.get_wrapper_attr("_crowd_poss")
@@ -178,17 +186,21 @@ while count < steps:
     else:
         plan = planner.plan(obs)
         mpc[0].current_pos = env.get_wrapper_attr("_agent_pos")
+
+    # Visualize robot trajecotry and the separating constraints between crowd and agent
     # None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
     #     *planner.prepare_plot(plan, plan_steps)
     # )
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
-    breaking_flags = np.array([False] * n_agents)
+
+    # Compute MPC nect action and if a braking trajectory is executed
+    braking_flags = np.array([False] * n_agents)
     if n_agents > 1:
         actions = []
         output, processes, queues = [], [], []
         # for i, (_plan, _obs) in enumerate(zip(plan, obs)):
-        #     control, breaking = mpc[i].get_action(_plan, _obs)
+        #     control, braking = mpc[i].get_action(_plan, _obs)
         #     actions.append(control[0])
         # actions = np.array(actions).flatten()
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
@@ -204,27 +216,31 @@ while count < steps:
             p.join()
         for i in range(n_agents):
             control_plan = output[i * 2]
-            breaking_flag = output[i * 2 + 1]
+            braking_flag = output[i * 2 + 1]
             mpc[i].last_planned_traj = control_plan
             action = control_plan[0]
             actions.append(action)
-            breaking_flags[i] = breaking_flag
-            if old_breaking_flags is not None:  # at least second step
-                if not old_breaking_flags[i] and breaking_flag:
-                    # before no breaking now breaking
-                    breaking_steps[i] = ep_step_count
-                if old_breaking_flags[i] and not breaking_flag:
-                    breaking_steps[i] *= -1  # (-) meaning that there was but not anymore
+            braking_flags[i] = braking_flag
+            if old_braking_flags is not None:  # at least second step
+                if not old_braking_flags[i] and braking_flag:
+                    # before no braking now braking
+                    braking_steps[i] = ep_step_count
+                if old_braking_flags[i] and not braking_flag:
+                    braking_steps[i] *= -1  # (-) meaning that there was but not anymore
         actions = np.array(actions).flatten()
     else:
-        control_plan, breaking_flag = mpc[0].get_action(plan, obs)
+        control_plan, braking_flag = mpc[0].get_action(plan, obs)
         actions = control_plan[0]  # only one agent so only one action
-        breaking_flags[0] = breaking_flag
-        if old_breaking_flags is not None:
-            tot_breaking_steps += 1 if breaking_flag and not old_breaking_flags[0] else 0
-    step_count += 1
+        braking_flags[0] = braking_flag
+        if old_braking_flags is not None:
+            tot_braking_steps += 1 if braking_flag and not old_braking_flags[0] else 0
+
+    # take step in the environment
     env.render() if render else None
     obs, reward, terminated, truncated, info = env.step(actions)
+
+    # update auxiliary variables
+    step_count += 1
     if gen_data:
         dataset[step_count] = np.hstack([
             old_obs.flatten(),
@@ -236,12 +252,12 @@ while count < steps:
         ])
     ep_return += reward
     ep_step_count += 1
-    old_breaking_flags = breaking_flags
+    old_braking_flags = braking_flags
     if terminated or truncated:
-        # print("Breaking flags: ", breaking_flags)
-        # print("Breaking steps: ", breaking_steps)
-        breaking_steps = np.array([200] * n_agents)  # 200 is too high, no breaking traj
-        old_breaking_flags = None
+        # print("braking flags: ", braking_flags)
+        # print("braking steps: ", braking_steps)
+        braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
+        old_braking_flags = None
         env.render() if render else None
         if not(ep_count == steps - 1 and env.get_wrapper_attr("run_test_case")):
             obs = env.reset()
@@ -254,12 +270,16 @@ while count < steps:
         progress_bar.update(1) if not gen_data else None
     progress_bar.update(1) if gen_data else None
     count = step_count if gen_data else ep_count
+
+# Save data if generating data
 if gen_data:
     np.save("dataset_" + env_str + ".npy", dataset)
+
+# Print and save results
+# print("Diffs: ", result.stdout)
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
-print("Diffs: ", result.stdout)
-print("Total breaking instances: ", tot_breaking_steps)
+print("Total braking instances: ", tot_braking_steps)
 print("Stats:")
 (
     col_rate,
@@ -284,7 +304,7 @@ with open(path, 'a', newline='') as csvfile:
         'return', 'ttg', 'success_rate',
         'col_rate', 'col_speed', 'col_agent_speed',
         'col_intersection_area', 'col_intersection_percent',
-        'col_severity_index', 'breaking_instances', 'freezing_instances'
+        'col_severity_index', 'braking_instances', 'freezing_instances'
     ]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     if not has_header:
@@ -299,6 +319,6 @@ with open(path, 'a', newline='') as csvfile:
         "col_intersection_area": avg_intersect_area,
         "col_intersection_percent": avg_intersect_area_percent,
         "col_severity_index": avg_col_severity,
-        "breaking_instances": tot_breaking_steps,
+        "braking_instances": tot_braking_steps,
         "freezing_instances": freezing_instances,
     })
