@@ -44,6 +44,7 @@ class MPCVel(AbstractMPC):
         self.avoid_crowd_coeff = 0.01
         self.plan_type = plan_type
 
+        # (mat)rix to project control (vel)ocities to future (pos)itions
         self.mat_pos_vel = scipy.linalg.toeplitz(
             np.ones(self.N), np.zeros(self.N)
         ) * self.DT
@@ -54,11 +55,14 @@ class MPCVel(AbstractMPC):
             np.hstack([self.mat_pos_vel * 0, self.mat_pos_vel])
         ]).reshape(2 * self.N, 2 * (self.N - 1))
 
+        # (mat)rix to project control (vel)ocities to future (pos)itions only for crowd
+        # since it is possible to have a shorter horizon only for the crowd constraint
         self.mat_pos_vel_crowd = np.concatenate([
             self.mat_pos_vel[:self.N_crowd],
             self.mat_pos_vel[self.N: self.N + self.N_crowd]
         ])
 
+        # (mat)rix to project control (vel)ocity to future (acc)elerations
         acc_from_vel = np.zeros(self.N)
         acc_from_vel[:2] = np.array([1, -1])
         self.mat_acc_vel = scipy.linalg.toeplitz(acc_from_vel, np.zeros(self.N)) / self.DT
@@ -68,7 +72,8 @@ class MPCVel(AbstractMPC):
             np.hstack([self.mat_acc_vel * 0, self.mat_acc_vel])
         ]).reshape(2 * self.N, 2 * (self.N - 1))
 
-
+        # Compute the quadratic part matrix Q and linear part vector p depending on the
+        # specified objective
         if self.plan_type == "Position":
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.mat_pos_vel.T @ self.mat_pos_vel +
@@ -118,11 +123,16 @@ class MPCVel(AbstractMPC):
             self.vec_p = vec_p
 
         if type(self).__name__ == "MPCVel":
+            # (mat)rix and (vec)tor to represent the velocity constraints
             self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N - 1)
+            # (mat)rix and (vec)tor to represent the acceleration constraints
             self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
 
 
     def gen_vel_const(self, horizon):
+        """
+        Genreate the velocity constraints (see Section 2.6 in theory/mpc)
+        """
         M_v_, b_v_, sgn_vel = super().gen_vel_param(horizon)
 
 
@@ -144,6 +154,9 @@ class MPCVel(AbstractMPC):
 
 
     def gen_acc_const(self, horizon):
+        """
+        Genreate the acceleration constraints (see Section 2.6 in theory/mpc)
+        """
         M_a_, b_a_, sgn_acc = super().gen_acc_param(horizon)
 
 
@@ -157,6 +170,7 @@ class MPCVel(AbstractMPC):
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, agent_vel, crowd_vels=None):
         for i, member in enumerate(range(crowd_poss.shape[1])):
+            # if considering uncertainty update the distance to the crowd
             if (not isinstance(self.CONST_DIST_CROWD, float) and
                len(self.CONST_DIST_CROWD.shape) >= 2 or hasattr(self, "member_indeces")):
                 idx = i
@@ -168,14 +182,21 @@ class MPCVel(AbstractMPC):
                     dist_to_keep = self.CONST_DIST_CROWD.copy()
                 else:
                     dist_to_keep = self.CONST_DIST_CROWD
+
+            # ignore if two far and different direction
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
             if ignore:
                 continue
+
+            # constraint formula
             mat_crowd = np.hstack([
                 np.eye(self.N_crowd) * vec[:, 0], np.eye(self.N_crowd) * vec[:, 1]
             ])
+
+            # if considering uncertainty update the distance to the crowd
             if isinstance(dist_to_keep, float):
                 dist_to_keep = [dist_to_keep] * self.N_crowd
+            # relaxing the uncertainty constraint
             if self.uncertainty == "rdist":
                 # lower uncertainty in the future for low velocities
                 assert isinstance(crowd_vels, np.ndarray)
@@ -185,10 +206,14 @@ class MPCVel(AbstractMPC):
                     dist_to_keep - np.ones_like(dist_to_keep) * dist_to_keep[0]
                 ) / dist_to_keep * self.relax_uncertainty
                 dist_to_keep *= (1. - step_diff * (1. - speed / self.CROWD_MAX_VEL))
+
+            # constraint formula
             vec_crowd = mat_crowd @ (
                 -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
             ) - np.array(dist_to_keep)
             mat_crowd_control = -mat_crowd @ self.mat_pos_vel_crowd
+
+            # update/add constraints
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
 
@@ -209,6 +234,10 @@ class MPCVel(AbstractMPC):
 
 
     def find_relevant_idxs(self, vel):
+        """
+        Shape relevant indexes according to problem. The purpose of this is to avoid
+        constraints that are already covered by other constraints for vel and acc.
+        """
         idxs = super().relevant_idxs(vel)
         idxs = np.hstack(list(idxs) * (self.N - 1)) + np.repeat(
             np.arange(0, (self.N - 1) * self.circle_lin_sides, self.circle_lin_sides), 3
@@ -217,6 +246,10 @@ class MPCVel(AbstractMPC):
 
 
     def __call__(self, plan, obs):
+        """
+        Shape relevant indexes according to problem. The purpose of this is to avoid
+        constraints that are already covered by other constraints for vel and acc.
+        """
         vel = self.core_mpc(plan, obs)
         _, _, current_vel, _, _, _ = obs
         braking = vel is None
