@@ -127,6 +127,8 @@ if "-ht" in sys.argv:
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
 planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
+augment_radius = float(sys.argv[sys.argv.index("-ar") + 1]) if "-ar" in sys.argv else 1.
+
 mpc = [
     get_mpc(
         mpc_type,
@@ -137,7 +139,7 @@ mpc = [
         const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE")[0] * 2 + 0.01001,
         radius_crowd=np.delete(
             env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:], i
-        ),
+        ) * augment_radius,
         agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
         agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
         crowd_max_vel=env.get_wrapper_attr("CROWD_MAX_VEL"),
