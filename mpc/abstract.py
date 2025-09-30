@@ -63,8 +63,8 @@ class AbstractMPC:
         # different constant distance crowd depending on different radii
         if radius_crowd is not None:
             self.radius_crowd = radius_crowd
-            if np.all(radius_crowd == radius_crowd[0]):
-                self.CONST_DIST_CROWD = 2 * self.PHYSICAL_SPACE + 0.01001
+            if len(np.unique(radius_crowd)) == 1:
+                self.CONST_DIST_CROWD = self.PHYSICAL_SPACE + radius_crowd[0] + 0.01001
             else:
                 # 0.01 takes care of the continuity in the real analog world while the
                 # collision are checked discretely in time
