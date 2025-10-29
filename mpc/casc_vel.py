@@ -203,6 +203,15 @@ class MPCCascVel(MPCVel):
         return None, None
 
 
+    def traj_from_plan(self, agent_vel):
+        all_future_pos = 0.5 * self.DT * np.repeat(agent_vel, self.M * self.N) +\
+            self.casc_mat_pos_vel @ self.last_planned_traj_casc
+        all_future_pos = np.array([
+            all_future_pos[:self.N * self.M], all_future_pos[self.N * self.M:]
+        ]).T
+        return all_future_pos
+
+
     def __call__(self, plan, obs):
         # goal, crowd_poss, agent_vel, crowd_vels, walls = obs
         # crowd_poss = self.calculate_crowd_poss(
@@ -214,7 +223,7 @@ class MPCCascVel(MPCVel):
             # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
         else:
-            # self.last_planned_traj_casc = vel
+            self.last_planned_traj_casc = vel
             vel = np.hstack([  # only next braking trajecotry is relevant
                 vel[:self.N - 1],
                 vel[self.M * (self.N - 1):self.M * (self.N - 1) + (self.N - 1)]

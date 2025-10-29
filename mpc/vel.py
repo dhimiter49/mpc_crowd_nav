@@ -245,6 +245,13 @@ class MPCVel(AbstractMPC):
         return np.array(idxs, dtype=int)
 
 
+    def traj_from_plan(self, current_vel):
+        traj = np.repeat(self.current_pos, self.N) + 0.5 * self.DT *\
+            np.repeat(current_vel, self.N) + self.mat_pos_vel @\
+            self.last_planned_traj[:-1].flatten('F')
+        return np.array([traj[:len(traj) // 2], traj[len(traj) // 2:]]).T
+
+
     def __call__(self, plan, obs):
         """
         Shape relevant indexes according to problem. The purpose of this is to avoid
