@@ -10,6 +10,7 @@ import multiprocessing as mp
 
 
 from mpc.factory import get_mpc
+import mpc.abstract as mpc_ab
 from plan import Plan
 from obs_handler import ObsHandler
 import warnings
@@ -31,6 +32,7 @@ ENV_DICT = {
     "-c": "CrowdNavigationStatic",
     "-mc": "CrowdNavigation",
     "-mcc": "CrowdNavigationConst",
+    "-mcco": "CrowdNavigationConst",
     "-mcs": "CrowdNavigation",
     "-mco": "CrowdNavigation",
     "-mci": "CrowdNavigationInter",
@@ -70,6 +72,9 @@ elif "-mci" in sys.argv:
     env_type = ENV_DICT["-mci"]
     env_str = "CrowdNavigationInter%s-v0" % velocity_str
     crowd_shift_idx = 1
+elif "-mcco" in sys.argv:
+    env_type = ENV_DICT["-mc"]
+    env_str = "CrowdNavigationConstOneWay%s-v0" % velocity_str
 else:
     env_type = ENV_DICT["-d"]
     env_str = "Navigation%s-v0" % velocity_str
@@ -232,6 +237,8 @@ while count < steps:
         actions = np.array(actions).flatten()
     else:
         control_plan, braking_flag = mpc[0].get_action(plan, obs)
+        # traj = mpc[0].traj_from_plan(obs[2])
+        # env.set_trajectory(traj)
         actions = control_plan[0]  # only one agent so only one action
         braking_flags[0] = braking_flag
         if old_braking_flags is not None:
@@ -279,6 +286,7 @@ if gen_data:
 
 # Print and save results
 # print("Diffs: ", result.stdout)
+# print("Constraints", mpc_ab.CONST_DIM / mpc_ab.CONST_STEPS)
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
 print("Total braking instances: ", tot_braking_steps)

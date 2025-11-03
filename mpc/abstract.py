@@ -6,6 +6,8 @@ import scipy
 from mpc.utils import gen_polygon
 
 
+# CONST_DIM = 0
+# CONST_STEPS = 0
 class AbstractMPC:
     """
     Abstract MPC for crowd navigation. Solves a qp problem by using the defined quadratic
@@ -148,6 +150,9 @@ class AbstractMPC:
         opt_V = self.vec_p(goal, pos_plan, vel_plan, vel)
         const_M = scipy.sparse.csr_matrix(np.vstack(const_M))
         const_b = np.hstack(const_b)
+        # global CONST_DIM, CONST_STEPS
+        # CONST_DIM += const_b.shape[0]
+        # CONST_STEPS += 1
         solution = solve_qp(
             # self.mat_Q, self.vec_p(goal, pos_plan, vel_plan, vel, crowd_poss),
             self.mat_Q, opt_V,
