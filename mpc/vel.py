@@ -25,6 +25,7 @@ class MPCVel(AbstractMPC):
         stability_coeff: float = 0.25,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
+        passive_safety: bool = True,
     ):
         super().__init__(
             horizon,
@@ -43,17 +44,19 @@ class MPCVel(AbstractMPC):
         self.stability_coeff = stability_coeff
         self.avoid_crowd_coeff = 0.01
         self.plan_type = plan_type
+        self.passive_safety = passive_safety
+        self.N_control = self.N - 1 if self.passive_safety else self.N
 
         # (mat)rix to project control (vel)ocities to future (pos)itions
         self.mat_pos_vel = scipy.linalg.toeplitz(
             np.ones(self.N), np.zeros(self.N)
         ) * self.DT
         np.fill_diagonal(self.mat_pos_vel, 1 / 2 * self.DT)
-        self.mat_pos_vel = self.mat_pos_vel[:, :-1]  # last dim is explicitly zero, ignore
+        self.mat_pos_vel = self.mat_pos_vel[:, :self.N_control]  # last dim is explicitly zero, ignore
         self.mat_pos_vel = np.stack([
             np.hstack([self.mat_pos_vel, self.mat_pos_vel * 0]),
             np.hstack([self.mat_pos_vel * 0, self.mat_pos_vel])
-        ]).reshape(2 * self.N, 2 * (self.N - 1))
+        ]).reshape(2 * self.N, 2 * (self.N_control))
 
         # (mat)rix to project control (vel)ocities to future (pos)itions only for crowd
         # since it is possible to have a shorter horizon only for the crowd constraint
@@ -66,22 +69,22 @@ class MPCVel(AbstractMPC):
         acc_from_vel = np.zeros(self.N)
         acc_from_vel[:2] = np.array([1, -1])
         self.mat_acc_vel = scipy.linalg.toeplitz(acc_from_vel, np.zeros(self.N)) / self.DT
-        self.mat_acc_vel = self.mat_acc_vel[:, :-1]
+        self.mat_acc_vel = self.mat_acc_vel[:, :self.N_control]
         self.mat_acc_vel = np.stack([
             np.hstack([self.mat_acc_vel, self.mat_acc_vel * 0]),
             np.hstack([self.mat_acc_vel * 0, self.mat_acc_vel])
-        ]).reshape(2 * self.N, 2 * (self.N - 1))
+        ]).reshape(2 * self.N, 2 * (self.N_control))
 
         # Compute the quadratic part matrix Q and linear part vector p depending on the
         # specified objective
         if self.plan_type == "Position":
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.mat_pos_vel.T @ self.mat_pos_vel +
-                self.stability_coeff * np.eye(2 * (self.N - 1))
+                self.stability_coeff * np.eye(2 * (self.N_control))
             )
             # self.mat_Q = scipy.sparse.csc_matrix(
             #     (1 - self.avoid_crowd_coeff) * self.mat_pos_vel.T @ self.mat_pos_vel +
-            #     self.stability_coeff * np.eye(2 * (self.N - 1))
+            #     self.stability_coeff * np.eye(2 * (self.N_control))
             # )
 
 
@@ -98,33 +101,33 @@ class MPCVel(AbstractMPC):
                 return goal_obj
             self.vec_p = vec_p
         elif self.plan_type == "Velocity":
-            self.mat_Q = scipy.sparse.csc_matrix(np.eye(2 * (self.N - 1)))
+            self.mat_Q = scipy.sparse.csc_matrix(np.eye(2 * (self.N_control)))
 
 
             def vec_p(_1, _2, plan_vels, vel):
                 plan_vels[:self.N] += vel[0]
                 plan_vels[self.N:] += vel[1]
-                plan_vels = np.delete(plan_vels, [self.N - 1, 2 * self.N - 1])
+                plan_vels = np.delete(plan_vels, [self.N_control, 2 * self.N_control])
                 return -plan_vels.T
             self.vec_p = vec_p
         elif self.plan_type == "PositionVelocity":
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.mat_pos_vel.T @ self.mat_pos_vel +
-                self.stability_coeff * np.eye(2 * (self.N - 1))
+                self.stability_coeff * np.eye(2 * (self.N_control))
             )
 
 
             def vec_p(_, plan_pos, plan_vels, vel):
                 plan_vels[:self.N] += vel[0]
                 plan_vels[self.N:] += vel[1]
-                plan_vels = np.delete(plan_vels, [self.N - 1, 2 * self.N - 1])
+                plan_vels = np.delete(plan_vels, [self.N_control, 2 * self.N_control])
                 return (-plan_pos + 0.5 * self.DT * np.repeat(vel, self.N)).T @ \
                     self.mat_pos_vel - self.stability_coeff * plan_vels.T
             self.vec_p = vec_p
 
         if type(self).__name__ == "MPCVel":
             # (mat)rix and (vec)tor to represent the velocity constraints
-            self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N - 1)
+            self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N_control)
             # (mat)rix and (vec)tor to represent the acceleration constraints
             self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
 
@@ -239,8 +242,8 @@ class MPCVel(AbstractMPC):
         constraints that are already covered by other constraints for vel and acc.
         """
         idxs = super().relevant_idxs(vel)
-        idxs = np.hstack(list(idxs) * (self.N - 1)) + np.repeat(
-            np.arange(0, (self.N - 1) * self.circle_lin_sides, self.circle_lin_sides), 3
+        idxs = np.hstack(list(idxs) * (self.N_control)) + np.repeat(
+            np.arange(0, (self.N_control) * self.circle_lin_sides, self.circle_lin_sides), 3
         )
         return np.array(idxs, dtype=int)
 
