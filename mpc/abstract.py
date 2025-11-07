@@ -98,6 +98,7 @@ class AbstractMPC:
 
         # other vars
         self.last_planned_traj = np.zeros((self.N, 2))
+        self.last_traj = None
         self.current_pos = None
         self.pos_horizon = None
         self.last_pos = None
@@ -366,7 +367,17 @@ class AbstractMPC:
         # print(np.where(np.linalg.norm(poss, axis=-1) <= 0.8)[0])
         zero_idx = np.where(np.linalg.norm(poss, axis=-1) == 0)[0]
         poss[zero_idx] += 1e-8
-        vec = -(poss.T / np.linalg.norm(poss, axis=-1)).T
+        poss_ = poss.copy()
+        if self.last_traj is not None:
+            last_traj = self.last_traj[1:]
+            traj_hor = len(last_traj)
+            if  traj_hor < self.N:
+                last_traj = np.concatenate([
+                    last_traj,
+                    np.stack([last_traj[-1]]*(self.N - traj_hor), axis=0)
+                ])
+            poss_ += self.current_pos - last_traj
+        vec = -(poss_.T / np.linalg.norm(poss_, axis=-1)).T
         dist = np.linalg.norm(poss, axis=-1)
         angle = np.arccos(np.clip(np.dot(-vec, agent_vel), -1, 1)) > np.pi / 2
         return poss, vec, (
@@ -412,3 +423,4 @@ class AbstractMPC:
     def reset(self):
         self.last_planned_traj *= 0
         self.current_pos = None
+        self.last_traj = None

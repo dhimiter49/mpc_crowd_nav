@@ -243,15 +243,22 @@ class MPCVel(AbstractMPC):
         """
         idxs = super().relevant_idxs(vel)
         idxs = np.hstack(list(idxs) * (self.N_control)) + np.repeat(
-            np.arange(0, (self.N_control) * self.circle_lin_sides, self.circle_lin_sides), 3
+            np.arange(0, (self.N_control) * self.circle_lin_sides, self.circle_lin_sides),
+            3
         )
         return np.array(idxs, dtype=int)
 
 
     def traj_from_plan(self, current_vel):
-        traj = np.repeat(self.current_pos, self.N) + 0.5 * self.DT *\
-            np.repeat(current_vel, self.N) + self.mat_pos_vel @\
-            self.last_planned_traj[:-1].flatten('F')
+        horizon = len(self.last_planned_traj)
+        mat_pos_vel = np.zeros((2*horizon, 2*(horizon - 1)))
+        mat_pos_vel[:horizon,:horizon - 1] = self.mat_pos_vel[:horizon,:horizon - 1]
+        mat_pos_vel[horizon:,horizon - 1:] = self.mat_pos_vel[
+            self.N:self.N + horizon, self.N_control:self.N_control + horizon - 1
+        ]
+        traj = np.repeat(self.current_pos, horizon) + 0.5 * self.DT *\
+            np.repeat(current_vel, horizon) + mat_pos_vel @\
+            self.last_planned_traj[:horizon - 1].flatten('F')
         return np.array([traj[:len(traj) // 2], traj[len(traj) // 2:]]).T
 
 
@@ -266,13 +273,24 @@ class MPCVel(AbstractMPC):
         if braking:
             # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
+            if not self.passive_safety:
+                N_control = len(self.last_planned_traj)
+                vel = np.zeros(2 * N_control)
+                vel[:N_control - 1] = self.last_planned_traj[1:, 0]
+                vel[N_control - 1] = self.last_planned_traj[-1, 0]
+                vel[N_control:2 * N_control - 1] = self.last_planned_traj[1:, 1]
+                vel[1 * N_control - 1] = self.last_planned_traj[-1:, 1]
 
-        action = np.array([
-            np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
-        ]).T
+        if self.passive_safety:
+            action = np.array([
+                np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
+            ]).T
+        else:
+            action = np.array([vel[:len(vel) // 2], vel[len(vel) // 2:]]).T
         # self.pos_horizon = np.repeat(self.current_pos, self.N) +\
         #     0.5 * np.repeat(current_vel, self.N) * self.DT +\
         #     self.mat_pos_vel @ action[:-1].flatten('F')
         self.last_planned_traj = action.copy()
+        self.last_traj = self.traj_from_plan(current_vel)
         self.last_pos = self.current_pos
         return action, braking
