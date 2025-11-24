@@ -23,6 +23,7 @@ MPC_DICT = {
     "-d": "simple",  # simple plan just minimizes all future distances to the goal
     "-lp": "linear_plan",  # straight line to goal with sampling distance based on max vel
     "-v": "velocity_control",  # linea_plan byt with velocity as control
+    "-sqp": "sequential",  # sequential QP
     "-cs": "cascading",  # linear_plan for cascading MPC
     "-vcs": "velocity_control_cascading"  # linear_plan with vel control for cascading MPC
 }
@@ -109,6 +110,8 @@ if "-v" in sys.argv and "-cs" in sys.argv:
     mpc_type = MPC_DICT["-vcs"]
     plan_steps = M
     mpc_kwargs["plan_length"] = M
+elif "-sqp" in sys.argv:
+    mpc_type = MPC_DICT["-sqp"]
 elif "-v" in sys.argv:
     mpc_type = MPC_DICT["-v"]
 elif "-cs" in sys.argv:

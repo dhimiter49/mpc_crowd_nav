@@ -1,11 +1,13 @@
 from mpc.acc import MPCAcc
 from mpc.vel import MPCVel
+from mpc.sqp_vel import MPC_SQP_Vel
 from mpc.linear import MPCLinear
 from mpc.casc_acc import MPCCascAcc
 from mpc.casc_vel import MPCCascVel
 
 ALL_TYPES = [
-    "simple", "linear_plan", "velocity_control", "cascading", "velocity_control_cascading"
+    "simple", "linear_plan", "velocity_control", "cascading",
+    "velocity_control_cascading", "sequential"
 ]
 
 
@@ -17,6 +19,8 @@ def get_mpc(mpc_type: str, **kwargs):
         return MPCLinear(**kwargs)
     elif mpc_type == "velocity_control":
         return MPCVel(**kwargs)
+    elif mpc_type == "sequential":
+        return MPC_SQP_Vel(**kwargs)
     elif mpc_type == "cascading":
         return MPCCascAcc(**kwargs)
     elif mpc_type == "velocity_control_cascading":

@@ -172,12 +172,13 @@ class AbstractMPC:
         )
 
         # Shorten horizon main loop
-        if solution is None and self.horizon_tries > 0:
+        horizon_tries = self.horizon_tries
+        if solution is None and horizon_tries > 0:
             horizon = self.N
             full_dim = crowd_const_dim + wall_const_dim + acc_vel_const_dim
             opt_Q = self.mat_Q.toarray() if not self.short_hor_only_crowd else self.mat_Q
             short_dims = crowd_const_dim if self.short_hor_only_crowd else full_dim
-            while self.horizon_tries > 0:
+            while horizon_tries > 0:
                 shorten_by = horizon // 2
                 # print("Using a shorter crowd horizon of: ", horizon - shorten_by)
                 del_idx = list(np.array([
@@ -219,8 +220,7 @@ class AbstractMPC:
                 if solution is not None:
                     break
                 horizon -= shorten_by
-                self.horizon_tries -= 1
-            self.horizon_tries = 3
+                horizon_tries -= 1
 
         return solution  # control plan
 
