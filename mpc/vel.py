@@ -48,15 +48,7 @@ class MPCVel(AbstractMPC):
         self.N_control = self.N - 1 if self.passive_safety else self.N
 
         # (mat)rix to project control (vel)ocities to future (pos)itions
-        self.mat_pos_vel = scipy.linalg.toeplitz(
-            np.ones(self.N), np.zeros(self.N)
-        ) * self.DT
-        np.fill_diagonal(self.mat_pos_vel, 1 / 2 * self.DT)
-        self.mat_pos_vel = self.mat_pos_vel[:, :self.N_control]  # last dim is explicitly zero, ignore
-        self.mat_pos_vel = np.stack([
-            np.hstack([self.mat_pos_vel, self.mat_pos_vel * 0]),
-            np.hstack([self.mat_pos_vel * 0, self.mat_pos_vel])
-        ]).reshape(2 * self.N, 2 * (self.N_control))
+        self.mat_pos_vel = self.make_mat_pos_vel(self.N, self.N - 1)
 
         # (mat)rix to project control (vel)ocities to future (pos)itions only for crowd
         # since it is possible to have a shorter horizon only for the crowd constraint
@@ -130,6 +122,17 @@ class MPCVel(AbstractMPC):
             self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N_control)
             # (mat)rix and (vec)tor to represent the acceleration constraints
             self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
+
+
+    def make_mat_pos_vel(self, hor, hor_ctrl):
+        mat_pos_vel = scipy.linalg.toeplitz(np.ones(hor), np.zeros(hor)) * self.DT
+        np.fill_diagonal(mat_pos_vel, 1 / 2 * self.DT)
+        mat_pos_vel = mat_pos_vel[:, :hor_ctrl]  # last dim is explicitly zero, ignore
+        mat_pos_vel = np.stack([
+            np.hstack([mat_pos_vel, mat_pos_vel * 0]),
+            np.hstack([mat_pos_vel * 0, mat_pos_vel])
+        ]).reshape(2 * hor, 2 * hor_ctrl)
+        return mat_pos_vel
 
 
     def gen_vel_const(self, horizon):

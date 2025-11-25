@@ -371,11 +371,17 @@ class AbstractMPC:
         if self.last_traj is not None:
             last_traj = self.last_traj[1:]
             traj_hor = len(last_traj)
-            if  traj_hor < self.N:
+            if "Casc" not in type(self).__name__ and traj_hor < self.N:
                 last_traj = np.concatenate([
-                    last_traj,
-                    np.stack([last_traj[-1]]*(self.N - traj_hor), axis=0)
+                    last_traj, np.stack([last_traj[-1]]*(self.N - traj_hor), axis=0)
                 ])
+            if "CascVel" in type(self).__name__:
+                last_traj = np.concatenate([last_traj, [last_traj[-1]]])
+                temp = []
+                for i in range(self.M):
+                    temp.append(last_traj[i:i + self.N])
+                last_traj = np.concatenate(temp)
+
             poss_ += self.current_pos - last_traj
         vec = -(poss_.T / np.linalg.norm(poss_, axis=-1)).T
         dist = np.linalg.norm(poss, axis=-1)
