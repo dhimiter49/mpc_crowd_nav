@@ -46,7 +46,7 @@ class MPC_SQP_Vel(MPCVel):
         self.mat_Q = scipy.sparse.csc_matrix(mat_pos_vel_quad)
         def vec_p(_1, plan, _2, vel, crowd=None):
             goal_obj = mat_pos_vel_quad @ self.last_sqp_solution +\
-                self.mat_pos_vel.T @ (-plan + 0.5 * self.DT * np.repeat(vel, self.N))
+                (-plan + 0.5 * self.DT * np.repeat(vel, self.N)).T  @ self.mat_pos_vel
             return goal_obj
         self.vec_p = vec_p
 
@@ -91,9 +91,11 @@ class MPC_SQP_Vel(MPCVel):
 
         def vec_vel_const(_, idxs):
             if idxs is None:
-                return (sgn_vel * b_v_)
+                return (M_v_.T * sgn_vel).T @ self.last_sqp_solution + sgn_vel * b_v_
             else:
-                return (sgn_vel * b_v_)[idxs]
+                return (
+                    (M_v_.T * sgn_vel).T @ self.last_sqp_solution + sgn_vel * b_v_
+                )[idxs]
 
 
         return mat_vel_const, vec_vel_const
@@ -164,6 +166,7 @@ class MPC_SQP_Vel(MPCVel):
     def __call__(self, plan, obs):
         tries = 30
         braking = False
+        _, _, current_vel, _, _, _ = obs
         while (
             (
                 tries == 30 or
@@ -173,14 +176,12 @@ class MPC_SQP_Vel(MPCVel):
             if tries < 30:
                 self.last_sqp_solution = action[:-1].flatten("F")
             step = self.core_mpc(plan, obs)
-            _, _, current_vel, _, _, _ = obs
             braking = step is None
 
             if braking:
                 print("Executing last computed braking trajectory!")
                 vel = self.last_planned_traj[1:].flatten("F")
             else:
-                print(step)
                 vel = self.last_sqp_solution + step
             action = np.array([
                 np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)

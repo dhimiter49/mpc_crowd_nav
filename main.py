@@ -50,7 +50,7 @@ PLAN_DICT = {
 
 ###############################  READING INPUT PARAMETERS  ###############################
 gen_data = "-gd" in sys.argv  # option to generate data from MPC
-velocity_str = "Vel" if "-v" in sys.argv else ""
+velocity_str = "Vel" if "-v" or "-sqp" in sys.argv else ""
 env_str = ""
 crowd_shift_idx = 0
 exp_name = "mpc" if "-n" not in sys.argv else sys.argv[sys.argv.index("-n") + 1]
