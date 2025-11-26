@@ -48,7 +48,7 @@ class MPCVel(AbstractMPC):
         self.N_control = self.N - 1 if self.passive_safety else self.N
 
         # (mat)rix to project control (vel)ocities to future (pos)itions
-        self.mat_pos_vel = self.make_mat_pos_vel(self.N, self.N - 1)
+        self.mat_pos_vel = self.make_mat_pos_vel(self.N, self.N_control)
 
         # (mat)rix to project control (vel)ocities to future (pos)itions only for crowd
         # since it is possible to have a shorter horizon only for the crowd constraint
