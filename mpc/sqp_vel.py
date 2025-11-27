@@ -41,6 +41,7 @@ class MPC_SQP_Vel(MPCVel):
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
         )
+        self.sqp_loops = 30
         self.last_sqp_solution = np.zeros(2 * self.N_control)
         mat_pos_vel_quad = self.mat_pos_vel.T @ self.mat_pos_vel
         self.mat_Q = scipy.sparse.csc_matrix(mat_pos_vel_quad)
@@ -159,16 +160,16 @@ class MPC_SQP_Vel(MPCVel):
 
 
     def __call__(self, plan, obs):
-        tries = 30
+        tries = self.sqp_loops
         braking = False
         _, _, current_vel, _, _, _ = obs
         while (
             (
-                tries == 30 or
+                tries == self.sqp_loops or
                 np.linalg.norm(self.last_sqp_solution - action[:-1].flatten("F")) > 1e-5
             ) and tries > 0 and not braking
         ):
-            if tries < 30:
+            if tries < self.sqp_loops:
                 self.last_sqp_solution = action[:-1].flatten("F")
             step = self.core_mpc(plan, obs)
             braking = step is None
