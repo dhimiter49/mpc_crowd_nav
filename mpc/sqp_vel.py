@@ -75,7 +75,7 @@ class MPC_SQP_Vel(MPCVel):
             return  -M_a_ @ self.mat_acc_vel @ self.last_sqp_solution +\
                sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
 
-        return ((M_a_ @ self.mat_acc_vel).T * sgn_acc).T, acc_vec_const
+        return np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc), acc_vec_const
 
 
     def gen_vel_const(self, horizon):
@@ -83,19 +83,14 @@ class MPC_SQP_Vel(MPCVel):
 
 
         def mat_vel_const(idxs):
-            if idxs is None:
-                return (M_v_.T * sgn_vel).T
-            else:
-                return (M_v_.T * sgn_vel).T[idxs]
+            ret = np.einsum("ij,i->ij", M_v_, sgn_vel)
+            return ret if idxs is None else ret[idxs]
 
 
         def vec_vel_const(_, idxs):
-            if idxs is None:
-                return (M_v_.T * sgn_vel).T @ self.last_sqp_solution + sgn_vel * b_v_
-            else:
-                return (
-                    (M_v_.T * sgn_vel).T @ self.last_sqp_solution + sgn_vel * b_v_
-                )[idxs]
+            ret = np.einsum("ij,i->ij", M_v_, sgn_vel) @ self.last_sqp_solution +\
+                sgn_vel * b_v_
+            return ret if idxs is None else ret[idxs]
 
 
         return mat_vel_const, vec_vel_const
