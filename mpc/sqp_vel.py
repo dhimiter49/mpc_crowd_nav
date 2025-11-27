@@ -73,8 +73,8 @@ class MPC_SQP_Vel(MPCVel):
         def acc_vec_const(agent_vel):
             agent_vel_ = np.zeros(2 * (horizon))
             agent_vel_[0], agent_vel_[horizon] = agent_vel
-            return  -M_a_ @ self.mat_acc_vel @ self.last_sqp_solution +\
-               sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
+            return  -np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc) @\
+                self.last_sqp_solution + sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
 
         return np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc), acc_vec_const
 
@@ -84,7 +84,7 @@ class MPC_SQP_Vel(MPCVel):
 
 
         def mat_vel_const(idxs):
-            ret = np.einsum("ij,i->ij", M_v_, sgn_vel)
+            ret = -np.einsum("ij,i->ij", M_v_, sgn_vel)
             return ret if idxs is None else ret[idxs]
 
 
