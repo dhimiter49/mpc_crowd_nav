@@ -145,13 +145,13 @@ class MPC_SQP_Vel(MPCVel):
             term_quadratic = 2 * self.mat_pos_vel_crowd.T @ self.mat_pos_vel_crowd @\
                 self.last_sqp_solution
             vec_crowd = (term_dist_crowd + term_agent_vel) @ self.last_sqp_solution +\
-                self.last_sqp_solution.T @ term_quadratic + np.einsum(
+                0.5 * self.last_sqp_solution.T @ term_quadratic + np.einsum(
                     "ij,ij->i", poss, poss
-                ) + np.einsum(
+                ) + self.DT * np.einsum(
                     "ij,ij->i", poss, agent_vel_par
-                ) + 0.25 * self.DT * np.einsum(
+                ) + 0.25 * self.DT ** 2 * np.einsum(
                     "ij,ij->i", agent_vel_par, agent_vel_par
-                ) - np.array(dist_to_keep)
+                ) - np.array(dist_to_keep) ** 2
             mat_crowd_control = term_dist_crowd + term_agent_vel + term_quadratic
 
             # update/add constraints
