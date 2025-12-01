@@ -134,18 +134,22 @@ class MPC_SQP_Vel(MPCVel):
 
             # constraint formula
             agent_vel_par = np.stack([agent_vel] * self.N).reshape(self.N, 2)
-            term_dist_crowd = 2 * np.einsum(
-                "ij,ijk->ik",
-                poss, self.mat_pos_vel_crowd.reshape((self.N, 2, -1), order='F')
+            mat_pos_vel_crowd_xy = self.mat_pos_vel_crowd.reshape(
+                (self.N, 2, -1), order='F'
             )
+            term_dist_crowd = 2 * np.einsum("ij,ijk->ik", poss, mat_pos_vel_crowd_xy)
             term_agent_vel = self.DT * np.einsum(
-                "ij,ijk->ik",
-                agent_vel_par, self.mat_pos_vel_crowd.reshape((self.N, 2, -1), order='F')
+                "ij,ijk->ik", agent_vel_par, mat_pos_vel_crowd_xy
             )
-            term_quadratic = 2 * self.mat_pos_vel_crowd.T @ self.mat_pos_vel_crowd @\
-                self.last_sqp_solution
+            term_quadratic = 2 * np.matmul(
+                np.transpose(mat_pos_vel_crowd_xy, (0, 2, 1)), mat_pos_vel_crowd_xy
+            ) @ self.last_sqp_solution
             vec_crowd = (term_dist_crowd + term_agent_vel) @ self.last_sqp_solution +\
-                0.5 * self.last_sqp_solution.T @ term_quadratic + np.einsum(
+                0.5 * np.einsum(
+                    "i,ji->j",
+                    self.last_sqp_solution,
+                    term_quadratic
+                ) + np.einsum(
                     "ij,ij->i", poss, poss
                 ) + self.DT * np.einsum(
                     "ij,ij->i", poss, agent_vel_par
