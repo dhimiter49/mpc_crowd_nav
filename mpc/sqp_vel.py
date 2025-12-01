@@ -179,7 +179,7 @@ class MPC_SQP_Vel(MPCVel):
             braking = step is None
 
             if braking:
-                print("Executing last computed braking trajectory!")
+                # print("Executing last computed braking trajectory!")
                 vel = self.last_planned_traj[1:].flatten("F")
             else:
                 vel = self.last_sqp_solution + step
@@ -187,9 +187,9 @@ class MPC_SQP_Vel(MPCVel):
                 np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
             ]).T
             self.last_planned_traj = action.copy()
-            self.last_traj = self.traj_from_plan(current_vel)
             self.last_pos = self.current_pos
             tries -= 1
+        self.last_traj = self.traj_from_plan(current_vel)
         return action, braking
 
 
