@@ -155,7 +155,6 @@ class AbstractMPC:
         # CONST_DIM += const_b.shape[0]
         # CONST_STEPS += 1
         solution = solve_qp(
-            # self.mat_Q, self.vec_p(goal, pos_plan, vel_plan, vel, crowd_poss),
             self.mat_Q, opt_V,
             # lb=-acc_b, ub=acc_b,
             G=const_M, h=const_b,
