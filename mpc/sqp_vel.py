@@ -40,6 +40,7 @@ class MPC_SQP_Vel(MPCVel):
             radius_crowd=radius_crowd,
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
+            passive_safety=passive_safety,
         )
         self.sqp_loops = 30
         self.last_sqp_solution = np.zeros(2 * self.N_control)
@@ -167,25 +168,39 @@ class MPC_SQP_Vel(MPCVel):
         tries = self.sqp_loops
         braking = False
         _, _, current_vel, _, _, _ = obs
+        last_action = None
         while (
             (
                 tries == self.sqp_loops or
-                np.linalg.norm(self.last_sqp_solution - action[:-1].flatten("F")) > 1e-5
+                np.linalg.norm(self.last_sqp_solution - last_action) > 1e-5
             ) and tries > 0 and not braking
         ):
             if tries < self.sqp_loops:
-                self.last_sqp_solution = action[:-1].flatten("F")
+                self.last_sqp_solution = last_action
             step = self.core_mpc(plan, obs)
             braking = step is None
 
             if braking:
                 # print("Executing last computed braking trajectory!")
                 vel = self.last_planned_traj[1:].flatten("F")
+                if not self.passive_safety:
+                    N_control = len(self.last_planned_traj)
+                    vel = np.zeros(2 * N_control)
+                    vel[:N_control - 1] = self.last_planned_traj[1:, 0]
+                    vel[N_control - 1] = self.last_planned_traj[-1, 0]
+                    vel[N_control:2 * N_control - 1] = self.last_planned_traj[1:, 1]
+                    vel[1 * N_control - 1] = self.last_planned_traj[-1:, 1]
             else:
                 vel = self.last_sqp_solution + step
-            action = np.array([
-                np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
-            ]).T
+
+            if self.passive_safety:
+                action = np.array([
+                    np.append(vel[:len(vel) // 2], 0), np.append(vel[len(vel) // 2:], 0)
+                ]).T
+                last_action = action[:-1].flatten('F')
+            else:
+                action = np.array([vel[:len(vel) // 2], vel[len(vel) // 2:]]).T
+                last_action = action.flatten('F')
             self.last_planned_traj = action.copy()
             self.last_pos = self.current_pos
             tries -= 1
