@@ -133,15 +133,41 @@ class MPCCascVel(MPCVel):
 
     def gen_crowd_const(self, const_M, const_b, crowd_poss, vel, crowd_vels=None):
         for member in range(crowd_poss.shape[1]):
+            if (not isinstance(self.CONST_DIST_CROWD, float) and
+               len(self.CONST_DIST_CROWD.shape) >= 2 or hasattr(self, "member_indeces")):
+                idx = i
+                if hasattr(self, "member_indeces"):
+                    idx = np.where(i < self.member_indeces)[0][0]
+                dist_to_keep = self.CONST_DIST_CROWD[idx]
+            else:
+                if isinstance(self.CONST_DIST_CROWD, np.ndarray):
+                    dist_to_keep = self.CONST_DIST_CROWD.copy()
+                else:
+                    dist_to_keep = self.CONST_DIST_CROWD
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
             if ignore:
                 continue
             mat_crowd = np.hstack([
                 np.eye(self.N * self.M) * vec[:, 0], np.eye(self.N * self.M) * vec[:, 1]
             ])
+
+            # if considering uncertainty update the distance to the crowd
+            if isinstance(dist_to_keep, float):
+                dist_to_keep = [dist_to_keep] * self.N * self.M
+            # relaxing the uncertainty constraint
+            if self.uncertainty == "rdist":
+                # lower uncertainty in the future for low velocities
+                assert isinstance(crowd_vels, np.ndarray)
+                assert isinstance(dist_to_keep, np.ndarray)
+                speed = np.linalg.norm(crowd_vels[i])
+                step_diff = (
+                    dist_to_keep - np.ones_like(dist_to_keep) * dist_to_keep[0]
+                ) / dist_to_keep * self.relax_uncertainty
+                dist_to_keep *= (1. - step_diff * (1. - speed / self.CROWD_MAX_VEL))
+
             vec_crowd = mat_crowd @ (
                 -poss.flatten("F") + 0.5 * self.DT * np.repeat(vel, self.N * self.M)
-            ) - np.array([self.CONST_DIST_CROWD] * self.N * self.M)
+            ) - np.array(dist_to_keep)
             mat_crowd_control = -mat_crowd @ self.casc_mat_pos_vel
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
@@ -227,8 +253,8 @@ class MPCCascVel(MPCVel):
         # )
         vel = self.core_mpc(plan, obs)
         _, _, current_vel, _, _, _ = obs
-        breaking = vel is None
-        if breaking:
+        braking = vel is None
+        if braking:
             # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
             self.last_planned_traj_casc = np.concatenate([
@@ -253,4 +279,4 @@ class MPCCascVel(MPCVel):
         ]).T
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
-        return action, breaking
+        return action, braking

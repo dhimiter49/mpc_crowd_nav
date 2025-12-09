@@ -290,5 +290,4 @@ class MPCVel(AbstractMPC):
         #     self.mat_pos_vel @ action[:-1].flatten('F')
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
-        self.last_pos = self.current_pos
         return action, braking

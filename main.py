@@ -11,6 +11,7 @@ import multiprocessing as mp
 
 from mpc.factory import get_mpc
 import mpc.abstract as mpc_ab
+import mpc.sqp_vel as mpc_sqp
 from plan import Plan
 from obs_handler import ObsHandler
 import warnings
@@ -25,7 +26,8 @@ MPC_DICT = {
     "-v": "velocity_control",  # linea_plan byt with velocity as control
     "-sqp": "sequential",  # sequential QP
     "-cs": "cascading",  # linear_plan for cascading MPC
-    "-vcs": "velocity_control_cascading"  # linear_plan with vel control for cascading MPC
+    "-vcs": "velocity_control_cascading",  # linear_plan with vel control for cascading
+    "-sqpcs": "sequential_cascading",  # sequential QP for cascading
 }
 
 ENV_DICT = {
@@ -106,7 +108,11 @@ if "-sc" in sys.argv:
     mpc_kwargs["stability_coeff"] = float(sys.argv[sys.argv.index("-sc") + 1])
 
 plan_steps = N
-if "-v" in sys.argv and "-cs" in sys.argv:
+if "-v" in sys.argv and "-cs" in sys.argv and "-sqp" in sys.argv:
+    mpc_type = MPC_DICT["-sqpcs"]
+    plan_steps = M
+    mpc_kwargs["plan_length"] = M
+elif "-v" in sys.argv and "-cs" in sys.argv:
     mpc_type = MPC_DICT["-vcs"]
     plan_steps = M
     mpc_kwargs["plan_length"] = M
