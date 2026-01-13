@@ -1,4 +1,5 @@
 import numpy as np
+from fast_3Drrt import Obstacle, RRTSpatioTemporal
 
 
 class Plan:
@@ -8,11 +9,11 @@ class Plan:
         self.MAX_VEL = max_vel
 
 
-    def plan(self, goal):
-        return self.__call__(goal)
+    def plan(self, goal, current_pos):
+        return self.__call__(goal, current_pos)
 
 
-    def __call__(self, obs):
+    def __call__(self, obs, _):
         # for this simple plan we only need the relative goal position to the agent
         goal, _, _, _, _, _ = obs
 
@@ -56,3 +57,81 @@ class Plan:
         steps_vel[:, 0] = vel_plan[:N]
         steps_vel[:, 1] = vel_plan[N:]
         return np.concatenate([np.zeros((1, 2)), steps]), steps_vel
+
+
+class RRT_Plan(Plan):
+    def __init__(self, horizon: int, dt: float, max_vel: float):
+        super().__init__(horizon, dt, max_vel)
+        self.path = None
+
+
+    def __call__(self, obs, current_pos):
+        if self.path is None:
+            goal, crowd_poss, _, crowd_vels, walls, radii = obs
+            crowd_poss = crowd_poss.reshape(-1, 2)
+            crowd_vels = crowd_vels.reshape(-1, 2)
+            if radii is None:
+                radii = [0.4] * len(crowd_poss)
+            obstacles = []
+            for pos, vel, radius in zip(crowd_poss, crowd_vels, radii):
+                obstacles.append(Obstacle(
+                    pos[0], pos[1],
+                    0, self.N * self.DT,
+                    vel[0], vel[1],
+                    radius
+                ))
+
+            rrt = RRTSpatioTemporal(
+                start=(0, 0, 0),
+                goal=tuple(goal),
+                obstacles=obstacles,
+                t_range=(0, self.N * self.DT),
+                rectangles=[],
+                robot_radius=0.4,
+                v_max=2 * self.MAX_VEL,
+                step_size=1,
+                max_iter=4000,
+                goal_bias=0.1,
+                goal_tolerance_xy=0.5,
+                min_spatial_step=0.5,
+            )
+
+            if not rrt.build():
+                print("[WARN] No valid path found.")
+            else:
+                path = rrt.get_path()
+                print(f"[INFO] Path length: {len(path)} nodes")
+            path = np.array(path)
+            max_time = path[-1][2]
+
+            sample_time = np.arange(0, max_time, self.DT)
+            interpol_x = np.interp(sample_time, path[:, 2], path[:, 0])[1:]
+            interpol_y = np.interp(sample_time, path[:, 2], path[:, 1])[1:]
+            traj_len = len(interpol_x)
+            if traj_len < self.N:
+                interpol_x = np.concatenate([
+                    interpol_x, np.repeat(interpol_x[-1], self.N - traj_len)
+                ])
+                interpol_y = np.concatenate([
+                    interpol_y, np.repeat(interpol_y[-1], self.N - traj_len)
+                ])
+            self.path = np.concatenate([interpol_x[:self.N], interpol_y[:self.N]])
+            path = self.path.copy()
+        else:
+            path = np.array([self.path[:self.N], self.path[self.N:]]).T
+            closest_index = np.argmin(np.linalg.norm(path - current_pos, axis=-1))
+            print(closest_index)
+            path = path[closest_index:]
+            traj_len = len(path)
+            if traj_len < self.N:
+                path = np.concatenate([
+                    path, np.repeat(path[-1], self.N - traj_len).reshape(-1, 2)
+                ])
+            path -= current_pos
+            path = path.flatten('F')
+        input()
+        self.last_current_pos = current_pos
+        return path, path * 0
+
+    def reset(self):
+        self.path = None
