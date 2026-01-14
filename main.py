@@ -142,7 +142,7 @@ if "-ns" in sys.argv:
     mpc_kwargs["passive_safety"] = False
 
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
-if "-rtt" in sys.argv:
+if "-rrt" in sys.argv:
     planner = RRT_Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 else:
     planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
