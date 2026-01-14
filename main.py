@@ -12,6 +12,7 @@ import multiprocessing as mp
 from mpc.factory import get_mpc
 import mpc.abstract as mpc_ab
 import mpc.sqp_vel as mpc_sqp
+from const_ctrl.const_controller import ConstController
 from plan import RRT_Plan, Plan
 from obs_handler import ObsHandler
 import warnings
@@ -143,13 +144,18 @@ if "-ns" in sys.argv:
 
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
 if "-rrt" in sys.argv:
-    planner = RRT_Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
+    planner = RRT_Plan(
+        plan_steps,
+        DT,
+        env.get_wrapper_attr("AGENT_MAX_VEL"),
+        const_ctrl="-cc" in sys.argv
+    )
 else:
     planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
 augment_radius = float(sys.argv[sys.argv.index("-ar") + 1]) if "-ar" in sys.argv else 1.
 
-mpc = [
+controller = [
     get_mpc(
         mpc_type,
         horizon=N,
@@ -166,7 +172,7 @@ mpc = [
         crowd_max_acc=env.get_wrapper_attr("MAX_ACC"),
         **mpc_kwargs
     ) for i in range(n_agents)
-]
+] if "-cc" not in sys.argv else [ConstController(dt=DT, planner=planner)]
 
 
 def mpc_get_action(mpc, plan, obs, q):
@@ -204,10 +210,10 @@ while count < steps:
         crowd_poss = env.get_wrapper_attr("_crowd_poss")
         for i, _obs in enumerate(obs):
             plan.append(planner.plan(_obs))
-            mpc[i].current_pos = crowd_poss[i]
+            controller[i].current_pos = crowd_poss[i]
     else:
-        mpc[0].current_pos = env.get_wrapper_attr("_agent_pos")
-        plan = planner.plan(obs, mpc[0].current_pos)
+        controller[0].current_pos = env.get_wrapper_attr("_agent_pos")
+        plan = planner.plan(obs, controller[0].current_pos)
 
     # Visualize robot trajecotry and the separating constraints between crowd and agent
     # None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
@@ -216,18 +222,18 @@ while count < steps:
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
 
-    # Compute MPC nect action and if a braking trajectory is executed
+    # Compute controller next action and if a braking trajectory is executed
     braking_flags = np.array([False] * n_agents)
     if n_agents > 1:
         actions = []
         output, processes, queues = [], [], []
         # for i, (_plan, _obs) in enumerate(zip(plan, obs)):
-        #     control, braking = mpc[i].get_action(_plan, _obs)
+        #     control, braking = controller[i].get_action(_plan, _obs)
         #     actions.append(control[0])
         # actions = np.array(actions).flatten()
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
             q = mp.Queue()
-            p = mp.Process(target=mpc_get_action, args=(mpc[i], _plan, _obs, q))
+            p = mp.Process(target=mpc_get_action, args=(controller[i], _plan, _obs, q))
             processes.append(p)
             queues.append(q)
             p.start()
@@ -239,7 +245,7 @@ while count < steps:
         for i in range(n_agents):
             control_plan = output[i * 2]
             braking_flag = output[i * 2 + 1]
-            mpc[i].last_planned_traj = control_plan
+            controller[i].last_planned_traj = control_plan
             action = control_plan[0]
             actions.append(action)
             braking_flags[i] = braking_flag
@@ -251,8 +257,8 @@ while count < steps:
                     braking_steps[i] *= -1  # (-) meaning that there was but not anymore
         actions = np.array(actions).flatten()
     else:
-        control_plan, braking_flag = mpc[0].get_action(plan, obs)
-        # traj = mpc[0].traj_from_plan(obs[2])
+        control_plan, braking_flag = controller[0].get_action(plan, obs)
+        # traj = controller[0].traj_from_plan(obs[2])
         # env.set_trajectory(traj)
         actions = control_plan[0]  # only one agent so only one action
         braking_flags[0] = braking_flag
@@ -286,7 +292,7 @@ while count < steps:
         if not(ep_count == steps - 1 and env.get_wrapper_attr("run_test_case")):
             obs = env.reset()
             for i in range(n_agents):
-                mpc[i].reset()
+                controller[i].reset()
                 planner.reset()
         returns.append(ep_return)
         ep_return = 0

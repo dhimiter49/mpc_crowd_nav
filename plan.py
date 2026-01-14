@@ -64,9 +64,10 @@ class Plan:
 
 
 class RRT_Plan(Plan):
-    def __init__(self, horizon: int, dt: float, max_vel: float):
+    def __init__(self, horizon: int, dt: float, max_vel: float, const_ctrl: bool):
         super().__init__(horizon, dt, max_vel)
         self.path = None
+        self.const_ctrl = const_ctrl
 
 
     def __call__(self, obs, current_pos):
@@ -106,6 +107,7 @@ class RRT_Plan(Plan):
                 path = rrt.get_path()
                 print(f"[INFO] Path length: {len(path)} nodes")
             path = np.array(path)
+            self.rrt_path = path
             max_time = path[-1][2]
 
             sample_time = np.arange(0, max_time, self.DT)
