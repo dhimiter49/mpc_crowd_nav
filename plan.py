@@ -59,6 +59,10 @@ class Plan:
         return np.concatenate([np.zeros((1, 2)), steps]), steps_vel
 
 
+    def reset(self):
+        pass
+
+
 class RRT_Plan(Plan):
     def __init__(self, horizon: int, dt: float, max_vel: float):
         super().__init__(horizon, dt, max_vel)
@@ -120,17 +124,12 @@ class RRT_Plan(Plan):
         else:
             path = np.array([self.path[:self.N], self.path[self.N:]]).T
             closest_index = np.argmin(np.linalg.norm(path - current_pos, axis=-1))
-            print(closest_index)
             path = path[closest_index:]
             traj_len = len(path)
             if traj_len < self.N:
-                path = np.concatenate([
-                    path, np.repeat(path[-1], self.N - traj_len).reshape(-1, 2)
-                ])
+                path = np.concatenate([path, np.stack([path[-1]] * (self.N - traj_len))])
             path -= current_pos
             path = path.flatten('F')
-        input()
-        self.last_current_pos = current_pos
         return path, path * 0
 
     def reset(self):

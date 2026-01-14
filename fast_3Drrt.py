@@ -138,10 +138,6 @@ def _is_colliding_jit(x1, y1, t1, x2, y2, t2,
     JIT-compiled core logic of is_colliding.
     All obstacle arrays have length n_obstacles.
     """
-    # Test to have visible collisions:
-    r_obs = r_obs * 1.05
-    # hx_tab = hx_tab * 0.8
-    # hy_tab = hy_tab * 0.8
     ### CROWD ###
     # 1) Final point collision
     # positions of obstacles at t2
