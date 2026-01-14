@@ -12,7 +12,7 @@ import multiprocessing as mp
 from mpc.factory import get_mpc
 import mpc.abstract as mpc_ab
 import mpc.sqp_vel as mpc_sqp
-from plan import Plan
+from plan import RRT_Plan, Plan
 from obs_handler import ObsHandler
 import warnings
 
@@ -142,7 +142,10 @@ if "-ns" in sys.argv:
     mpc_kwargs["passive_safety"] = False
 
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
-planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
+if "-rtt" in sys.argv:
+    planner = RRT_Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
+else:
+    planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
 augment_radius = float(sys.argv[sys.argv.index("-ar") + 1]) if "-ar" in sys.argv else 1.
 
@@ -203,8 +206,8 @@ while count < steps:
             plan.append(planner.plan(_obs))
             mpc[i].current_pos = crowd_poss[i]
     else:
-        plan = planner.plan(obs)
         mpc[0].current_pos = env.get_wrapper_attr("_agent_pos")
+        plan = planner.plan(obs, mpc[0].current_pos)
 
     # Visualize robot trajecotry and the separating constraints between crowd and agent
     # None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
@@ -284,6 +287,7 @@ while count < steps:
             obs = env.reset()
             for i in range(n_agents):
                 mpc[i].reset()
+                planner.reset()
         returns.append(ep_return)
         ep_return = 0
         ep_count += 1
