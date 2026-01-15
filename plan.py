@@ -86,6 +86,7 @@ class RRT_Plan(Plan):
                     radius
                 ))
 
+            self.ref_pos = current_pos
             rrt = RRTSpatioTemporal(
                 start=(0, 0, 0),
                 goal=tuple(goal),
@@ -124,7 +125,7 @@ class RRT_Plan(Plan):
             self.path = np.concatenate([interpol_x[:self.N], interpol_y[:self.N]])
             path = self.path.copy()
         else:
-            path = np.array([self.path[:self.N], self.path[self.N:]]).T
+            path = np.array([self.path[:self.N], self.path[self.N:]]).T + self.ref_pos
             closest_index = np.argmin(np.linalg.norm(path - current_pos, axis=-1))
             path = path[closest_index:]
             traj_len = len(path)
