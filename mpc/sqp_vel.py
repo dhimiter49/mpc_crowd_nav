@@ -143,7 +143,8 @@ class MPC_SQP_Vel(MPCVel):
                 vec_crowd = mat_crowd @ self.mat_pos_vel_crowd @ self.last_sqp_solution
                 # old part
                 vec_crowd += mat_crowd @ (
-                    -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
+                    -poss.flatten("F") +
+                    0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
                 ) - np.array(dist_to_keep)
                 mat_crowd_control = -mat_crowd @ self.mat_pos_vel_crowd
             else:
