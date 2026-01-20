@@ -26,6 +26,7 @@ class MPC_SQP_Vel(MPCVel):
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,
+        lin_crowd_const: bool = True,
     ):
         super().__init__(
             horizon,
@@ -42,6 +43,7 @@ class MPC_SQP_Vel(MPCVel):
             relax_uncertainty=relax_uncertainty,
             passive_safety=passive_safety,
         )
+        self.lin_crowd_const = lin_crowd_const
         self.sqp_loops = 30
         self.last_sqp_solution = np.zeros(2 * self.N_control)
         mat_pos_vel_quad = self.mat_pos_vel.T @ self.mat_pos_vel
@@ -117,7 +119,6 @@ class MPC_SQP_Vel(MPCVel):
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, agent_vel)
             if ignore:
                 continue
-            poss = -poss
 
             # if considering uncertainty update the distance to the crowd
             if isinstance(dist_to_keep, float):
@@ -134,33 +135,46 @@ class MPC_SQP_Vel(MPCVel):
                 dist_to_keep *= (1. - step_diff * (1. - speed / self.CROWD_MAX_VEL))
 
             # constraint formula
-            agent_vel_par = np.stack([agent_vel] * self.N).reshape(self.N, 2)
-            mat_pos_vel_crowd_xy = self.mat_pos_vel_crowd.reshape(
-                (self.N, 2, -1), order='F'
-            )
-            term_dist_crowd = 2 * np.einsum("ij,ijk->ik", poss, mat_pos_vel_crowd_xy)
-            term_agent_vel = self.DT * np.einsum(
-                "ij,ijk->ik", agent_vel_par, mat_pos_vel_crowd_xy
-            )
-            term_quadratic = 2 * np.matmul(
-                np.transpose(mat_pos_vel_crowd_xy, (0, 2, 1)), mat_pos_vel_crowd_xy
-            ) @ self.last_sqp_solution
-            vec_crowd = (term_dist_crowd + term_agent_vel) @ self.last_sqp_solution +\
-                0.5 * np.einsum(
-                    "i,ji->j",
-                    self.last_sqp_solution,
-                    term_quadratic
-                ) + np.einsum(
-                    "ij,ij->i", poss, poss
-                ) + self.DT * np.einsum(
-                    "ij,ij->i", poss, agent_vel_par
-                ) + 0.25 * self.DT ** 2 * np.einsum(
-                    "ij,ij->i", agent_vel_par, agent_vel_par
-                ) - np.array(dist_to_keep) ** 2
-            mat_crowd_control = term_dist_crowd + term_agent_vel + term_quadratic
+            if self.lin_crowd_const:
+                mat_crowd = np.hstack([
+                    np.eye(self.N_crowd) * vec[:, 0], np.eye(self.N_crowd) * vec[:, 1]
+                ])
+                # derivative part
+                vec_crowd = mat_crowd @ self.mat_pos_vel_crowd @ self.last_sqp_solution
+                # old part
+                vec_crowd += mat_crowd @ (
+                    -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
+                ) - np.array(dist_to_keep)
+                mat_crowd_control = -mat_crowd @ self.mat_pos_vel_crowd
+            else:
+                poss = -poss
+                agent_vel_par = np.stack([agent_vel] * self.N).reshape(self.N, 2)
+                mat_pos_vel_crowd_xy = self.mat_pos_vel_crowd.reshape(
+                    (self.N, 2, -1), order='F'
+                )
+                term_dist_crowd = 2 * np.einsum("ij,ijk->ik", poss, mat_pos_vel_crowd_xy)
+                term_agent_vel = self.DT * np.einsum(
+                    "ij,ijk->ik", agent_vel_par, mat_pos_vel_crowd_xy
+                )
+                term_quadratic = 2 * np.matmul(
+                    np.transpose(mat_pos_vel_crowd_xy, (0, 2, 1)), mat_pos_vel_crowd_xy
+                ) @ self.last_sqp_solution
+                vec_crowd = (term_dist_crowd + term_agent_vel) @ self.last_sqp_solution +\
+                    0.5 * np.einsum(
+                        "i,ji->j",
+                        self.last_sqp_solution,
+                        term_quadratic
+                    ) + np.einsum(
+                        "ij,ij->i", poss, poss
+                    ) + self.DT * np.einsum(
+                        "ij,ij->i", poss, agent_vel_par
+                    ) + 0.25 * self.DT ** 2 * np.einsum(
+                        "ij,ij->i", agent_vel_par, agent_vel_par
+                    ) - np.array(dist_to_keep) ** 2
+                mat_crowd_control = -(term_dist_crowd + term_agent_vel + term_quadratic)
 
             # update/add constraints
-            const_M.append(-mat_crowd_control)
+            const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
 
 
