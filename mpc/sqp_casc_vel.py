@@ -19,14 +19,13 @@ class MPC_SQP_CascVel(MPCCascVel):
         agent_max_acc: float,
         crowd_max_vel: float,
         crowd_max_acc: float,
-        plan_type: str = "Position",
         plan_length: int = 20,
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
-        stability_coeff: float = 0.25,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
-        lin_crowd_const: bool = True,
+        lin_crowd_const: bool = False,
+        **_
     ):
         super().__init__(
             horizon,
@@ -79,7 +78,7 @@ class MPC_SQP_CascVel(MPCCascVel):
         def acc_vec_const(agent_vel):
             agent_vel_ = np.zeros(2 * (horizon))
             agent_vel_[0], agent_vel_[horizon] = agent_vel
-            return  -np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc) @\
+            return -np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc) @\
                 self.last_sqp_solution + sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
 
         return np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc), acc_vec_const

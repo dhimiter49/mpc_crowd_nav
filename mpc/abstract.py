@@ -108,6 +108,18 @@ class AbstractMPC:
         return self.__call__(plan, obs)
 
 
+    def __call__(self, *_):
+        pass
+
+
+    def gen_crowd_const(self, *_):
+        pass
+
+
+    def lin_pos_constraint(self, *_):
+        pass
+
+
     def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
         goal, crowd_poss, vel, crowd_vels, walls, radii = obs

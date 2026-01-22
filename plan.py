@@ -102,11 +102,10 @@ class RRT_Plan(Plan):
                 min_spatial_step=0.5,
             )
 
-            if not rrt.build():
-                print("[WARN] No valid path found.")
-            else:
-                path = rrt.get_path()
-                print(f"[INFO] Path length: {len(path)} nodes")
+            while True:
+                if rrt.build():
+                    path = rrt.get_path()
+                    break
             path = np.array(path)
             self.rrt_path = path
             max_time = path[-1][2]
@@ -134,6 +133,7 @@ class RRT_Plan(Plan):
             path -= current_pos
             path = path.flatten('F')
         return path, path * 0
+
 
     def reset(self):
         self.path = None

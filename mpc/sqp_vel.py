@@ -19,14 +19,13 @@ class MPC_SQP_Vel(MPCVel):
         agent_max_acc: float,
         crowd_max_vel: float,
         crowd_max_acc: float,
-        plan_type: str = "Position",
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
-        stability_coeff: float = 0.25,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,
         lin_crowd_const: bool = True,
+        **_
     ):
         super().__init__(
             horizon,
@@ -48,7 +47,9 @@ class MPC_SQP_Vel(MPCVel):
         self.last_sqp_solution = np.zeros(2 * self.N_control)
         mat_pos_vel_quad = self.mat_pos_vel.T @ self.mat_pos_vel
         self.mat_Q = scipy.sparse.csc_matrix(mat_pos_vel_quad)
-        def vec_p(_1, plan, _2, vel, crowd=None):
+
+
+        def vec_p(_1, plan, _2, vel, **_):
             goal_obj = mat_pos_vel_quad @ self.last_sqp_solution +\
                 (-plan + 0.5 * self.DT * np.repeat(vel, self.N)).T  @ self.mat_pos_vel
             return goal_obj
@@ -76,7 +77,7 @@ class MPC_SQP_Vel(MPCVel):
         def acc_vec_const(agent_vel):
             agent_vel_ = np.zeros(2 * (horizon))
             agent_vel_[0], agent_vel_[horizon] = agent_vel
-            return  -np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc) @\
+            return -np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc) @\
                 self.last_sqp_solution + sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
 
         return np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc), acc_vec_const
