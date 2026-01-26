@@ -8,6 +8,7 @@ from mpc.vel import MPCVel
 class MPC_SQP_Vel(MPCVel):
     """
     Reiterate the QP using Newton method in order to handle non-linear constraints (SQP).
+    In the end, linear constraints are used (option for non linear crowd constraint).
     """
     def __init__(
         self,

@@ -86,7 +86,7 @@ class RRT_Plan(Plan):
                     vel[0], vel[1],
                     radius
                 ))
-            left, right, down, up = walls
+            right, left, down, up = walls
             rectangles = [
                 (-left, 0, 0, 0.01, 100),
                 (right, 0, 0, 0.01, 100),
