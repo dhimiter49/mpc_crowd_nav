@@ -12,6 +12,7 @@ class ConstController:
         self.current_time = 0.
         self.current_pos = None
         self.planner = planner
+        self.last_planned_traj = None
 
 
     def get_action(self, *args):

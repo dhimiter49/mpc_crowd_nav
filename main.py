@@ -5,13 +5,11 @@ import numpy as np
 from tqdm import tqdm
 import fancy_gym
 import gymnasium as gym
-import subprocess
+# import subprocess
 import multiprocessing as mp
 
 
 from mpc.factory import get_mpc
-import mpc.abstract as mpc_ab
-import mpc.sqp_vel as mpc_sqp
 from const_ctrl.const_controller import ConstController
 from plan import RRT_Plan, Plan
 from obs_handler import ObsHandler
@@ -190,7 +188,7 @@ dataset = np.empty((
 )) if gen_data else None
 obs = env.reset()
 plan = np.zeros((N, 2))
-returns, ep_return, vels, action = [], 0, [], np.array([0, 0])
+returns, ep_return, vels, action = [], 0., [], np.array([0, 0])
 ep_count = 0
 ep_step_count = 0
 step_count = 0
@@ -199,6 +197,8 @@ count = step_count if gen_data else ep_count
 old_braking_flags = None
 braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
 progress_bar = tqdm(total=steps, desc="Processing")
+
+reward, terminated, truncated = None, None, None
 
 # Main loop
 while count < steps:
@@ -210,7 +210,7 @@ while count < steps:
         plan = []
         crowd_poss = env.get_wrapper_attr("_crowd_poss")
         for i, _obs in enumerate(obs):
-            plan.append(planner.plan(_obs))
+            plan.append(planner.plan(_obs, None))  # dont need current pos for naive plan
             controller[i].current_pos = crowd_poss[i]
     else:
         controller[0].current_pos = env.get_wrapper_attr("_agent_pos")
@@ -293,7 +293,7 @@ while count < steps:
         braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
         old_braking_flags = None
         env.render() if render else None
-        if not(ep_count == steps - 1 and env.get_wrapper_attr("run_test_case")):
+        if not (ep_count == steps - 1 and env.get_wrapper_attr("run_test_case")):
             obs = env.reset()
             for i in range(n_agents):
                 controller[i].reset()
@@ -312,7 +312,6 @@ if gen_data:
 
 # Print and save results
 # print("Diffs: ", result.stdout)
-# print("Constraints", mpc_ab.CONST_DIM / mpc_ab.CONST_STEPS)
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
 print("Total braking instances: ", tot_braking_steps)
