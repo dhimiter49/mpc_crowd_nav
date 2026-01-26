@@ -26,7 +26,6 @@ class ConstController:
                 time_interval
         else:
             vel = np.zeros(2)
-        input()
         self.current_time += self.DT
         return [vel], False
 

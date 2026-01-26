@@ -42,6 +42,7 @@ class MPC_SQP_Vel(MPCVel):
             relax_uncertainty=relax_uncertainty,
             passive_safety=passive_safety,
         )
+        self.all_tries = []  # keep track of how many tries
         self.lin_crowd_const = lin_crowd_const
         self.sqp_loops = 30
         self.last_sqp_solution = np.zeros(2 * self.N_control)
@@ -220,6 +221,8 @@ class MPC_SQP_Vel(MPCVel):
             self.last_planned_traj = action.copy()
             self.last_pos = self.current_pos
             tries -= 1
+        # if not braking:
+        #     self.all_tries.append(self.sqp_loops - tries)
         self.last_traj = self.traj_from_plan(current_vel)
         return action, braking
 
