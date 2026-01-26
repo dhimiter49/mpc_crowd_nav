@@ -229,4 +229,5 @@ class MPC_SQP_CascVel(MPCCascVel):
 
 
     def reset(self):
+        super().reset()
         self.last_sqp_solution = np.zeros(2 * (self.N - 1) * self.M)
