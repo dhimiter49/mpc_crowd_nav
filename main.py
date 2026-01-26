@@ -90,6 +90,7 @@ render = "-nr" not in sys.argv
 
 N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
 M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
+R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
 DT = env.unwrapped.dt
 
 
@@ -255,19 +256,22 @@ while count < steps:
                     braking_steps[i] = ep_step_count
                 if old_braking_flags[i] and not braking_flag:
                     braking_steps[i] *= -1  # (-) meaning that there was but not anymore
-        actions = np.array(actions).flatten()
+        actions = [np.array(actions).flatten()]
     else:
         control_plan, braking_flag = controller[0].get_action(plan, obs)
         # traj = controller[0].traj_from_plan(obs[2])
         # env.set_trajectory(traj)
-        actions = control_plan[0]  # only one agent so only one action
+        actions = control_plan[:R]  # only one agent so only one action
         braking_flags[0] = braking_flag
         if old_braking_flags is not None:
             tot_braking_steps += 1 if braking_flag and not old_braking_flags[0] else 0
 
     # take step in the environment
-    env.render() if render else None
-    obs, reward, terminated, truncated, info = env.step(actions)
+    for a in actions:
+        env.render() if render else None
+        obs, reward, terminated, truncated, info = env.step(a)
+        if terminated or truncated:
+            break
 
     # update auxiliary variables
     step_count += 1

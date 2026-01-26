@@ -220,10 +220,10 @@ class RRTSpatioTemporal:
         t_range,        # (t_min, t_max)
         goal_bias,
         v_max=1.0,
-        step_size=3,
+        dt=0.1,
         max_iter=2000,
         goal_tolerance_xy=0.5,
-        min_spatial_step=0.2,
+        min_spatial_step=0.0,
         verbose=False
     ):
         self.start = (start[0], start[1], start[2])
@@ -231,7 +231,7 @@ class RRTSpatioTemporal:
 
         self.t_range   = t_range
         self.v_max     = v_max
-        self.step_size = step_size
+        self.dt = dt
         self.goal_tolerance_xy = goal_tolerance_xy
         self.max_iter  = max_iter
         self.goal_bias = goal_bias
@@ -296,18 +296,18 @@ class RRTSpatioTemporal:
     # -------------------------------------------------------------------
     def steer(self, from_node, to_node):
         """
-        Move from from_node toward to_node by step_size in 3D (x,y,t).
+        Move from from_node toward to_node by self.dt in 3D (x,y,t).
         """
-        d = self.distance_3d(from_node, to_node)
-        if d < self.step_size:
-            return to_node
-        ratio = self.step_size / d
+        d = self.distance_xy(from_node, to_node)
         dx = to_node[0] - from_node[0]
         dy = to_node[1] - from_node[1]
         dt = to_node[2] - from_node[2]
-        return ( from_node[0] + ratio*dx,
-                 from_node[1] + ratio*dy,
-                 from_node[2] + ratio*dt )
+        if dt < self.dt:
+            return to_node
+        ratio_dt = self.dt / dt
+        return ( from_node[0] + ratio_dt*dx,
+                 from_node[1] + ratio_dt*dy,
+                 from_node[2] + self.dt)
 
     # -------------------------------------------------------------------
     # Collision check
@@ -656,7 +656,6 @@ def main():
             obstacles=obstacles,
             t_range=t_range,
             v_max=1.0,
-            step_size=1,
             max_iter=4000,
         )
         is_valid = rrt.build()

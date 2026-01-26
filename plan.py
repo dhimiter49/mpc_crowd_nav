@@ -68,6 +68,7 @@ class RRT_Plan(Plan):
         super().__init__(horizon, dt, max_vel)
         self.path = None
         self.const_ctrl = const_ctrl
+        self.step = 0
 
 
     def __call__(self, obs, current_pos):
@@ -85,21 +86,27 @@ class RRT_Plan(Plan):
                     vel[0], vel[1],
                     radius
                 ))
+            left, right, down, up = walls
+            rectangles = [
+                (-left, 0, 0, 0.01, 100),
+                (right, 0, 0, 0.01, 100),
+                (0, -down, 0, 100, 0.01),
+                (0, up, 0, 100, 0.1),
+            ]
 
             self.ref_pos = current_pos
             rrt = RRTSpatioTemporal(
                 start=(0, 0, 0),
                 goal=tuple(goal),
                 obstacles=obstacles,
+                rectangles=rectangles,
                 t_range=(0, self.N * self.DT),
-                rectangles=[],
-                robot_radius=0.4,
-                v_max=2 * self.MAX_VEL,
-                step_size=1,
-                max_iter=4000,
+                robot_radius=0.42,
+                v_max=self.MAX_VEL,
+                dt=0.1,
+                max_iter=40000,
                 goal_bias=0.1,
                 goal_tolerance_xy=0.5,
-                min_spatial_step=0.5,
             )
 
             while True:
@@ -125,15 +132,18 @@ class RRT_Plan(Plan):
             path = self.path.copy()
         else:
             path = np.array([self.path[:self.N], self.path[self.N:]]).T + self.ref_pos
-            closest_index = np.argmin(np.linalg.norm(path - current_pos, axis=-1))
-            path = path[closest_index:]
+            # closest_index = np.argmin(np.linalg.norm(path - current_pos, axis=-1))
+            # path = path[closest_index:]
+            path = path[self.step:]
             traj_len = len(path)
             if traj_len < self.N:
                 path = np.concatenate([path, np.stack([path[-1]] * (self.N - traj_len))])
             path -= current_pos
             path = path.flatten('F')
+        self.step += 1
         return path, path * 0
 
 
     def reset(self):
+        self.step = 0
         self.path = None
