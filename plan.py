@@ -138,7 +138,8 @@ class RRT_Plan(Plan):
                 path = self.path.copy()
             else:
                 print("Path not found from RRT!")
-                self.time_path[:, 2] = np.arange(0., self.N * self.DT + 1e-8, self.DT)
+                self.time_path = np.zeros((self.N, 3))
+                self.time_path[:, 2] = np.arange(0., self.N * self.DT, self.DT)
                 path = np.zeros(self.N * 2)  # dont move
                 self.path = path
         else:
