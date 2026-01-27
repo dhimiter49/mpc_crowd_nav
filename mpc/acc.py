@@ -76,16 +76,16 @@ class MPCAcc(AbstractMPC):
         )
 
         # p vector (linear term) in the quadratic objective
-        self.vec_p = lambda goal, _1, _2, vel: (
+        self.vec_p = lambda goal, __1__, __2__, vel: (
             (-np.repeat(goal, self.N) + self.vec_pos_vel * np.repeat(vel, self.N)).T @
             self.mat_pos_acc + self.stability_coeff * np.repeat(vel, self.N) @
             self.mat_vel_acc
         )
 
         # (mat)rix and (vec)tor to represent the velocity constraints
-        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const(self.N)
+        self.gen_vel_const(self.N)
         # (mat)rix and (vec)tor to represent the acceleration constraints
-        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N)
+        self.gen_acc_const(self.N)
 
 
     def gen_vel_const(self, horizon):
@@ -103,7 +103,7 @@ class MPCAcc(AbstractMPC):
         def vel_mat_const(idxs):
             return ((M_v_ @ self.mat_vel_acc).T * sgn_vel).T[idxs].squeeze()
 
-        return vel_mat_const, vel_vec_const
+        self.set_vel_const(vel_mat_const, vel_vec_const)
 
 
     def gen_acc_const(self, horizon):
@@ -115,20 +115,24 @@ class MPCAcc(AbstractMPC):
 
         def vec_const(_):
             return sgn_acc * b_a_
-        return (M_a_.T * sgn_acc).T, vec_const
+        self.set_acc_const((M_a_.T * sgn_acc).T, vec_const)
 
 
-    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel, crowd_vels=None):
+    def gen_crowd_const(self, **kwargs):
         """
         Generate crowd constraints (see Section 1.5 in theory/mpc)
         """
+        const_M = kwargs["const_M"]
+        const_b = kwargs["const_b"]
+        crowd_poss = kwargs["crowd_poss"]
+        vel = kwargs["agent_vel"]
         for i, member in enumerate(range(crowd_poss.shape[1])):
             # if considering uncertainty update the distance to the crowd
-            if hasattr(self, "member_indeces"):
+            dist_to_keep = self.CONST_DIST_CROWD
+            if hasattr(self, "member_indeces") and\
+               isinstance(self.CONST_DIST_CROWD, np.ndarray):
                 idx = np.where(i < self.member_indeces)[0][0]
                 dist_to_keep = self.CONST_DIST_CROWD[idx]
-            else:
-                dist_to_keep = self.CONST_DIST_CROWD
 
             # ignore if two far and different direction
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
@@ -161,12 +165,17 @@ class MPCAcc(AbstractMPC):
         return np.array(idxs, dtype=int)
 
 
-    def terminal_const(self, vel):
+    def terminal_const(self, *args):
+        vel = args[0]
         return self.mat_vel_acc[[self.N - 1, 2 * self.N - 1], :], -vel
 
 
-    def lin_pos_constraint(self, const_M, const_b, line_eq, vel):
+    def lin_pos_constraint(self, **kwargs):
         """The linear position constraint is given by the equation ax+yb+c"""
+        const_M = kwargs["const_M"]
+        const_b = kwargs["const_b"]
+        line_eq = kwargs["line_eq"]
+        vel = kwargs["vel"]
         for line in line_eq:
             mat_line = np.hstack([np.eye(self.N) * line[0], np.eye(self.N) * line[1]])
             limit = -mat_line @ (self.vec_pos_vel * np.repeat(vel, self.N)) - line[2]
@@ -175,10 +184,12 @@ class MPCAcc(AbstractMPC):
             const_b.append(-limit)
 
 
-    def __call__(self, plan, obs):
+    def __call__(self, **kwargs):
         """
         Run mpc and if the results is None use the last computed braking trajectory.
         """
+        plan = kwargs["plan"]
+        obs = kwargs["obs"]
         acc = self.core_mpc(plan, obs)
         braking = acc is None
         if braking:
@@ -189,4 +200,4 @@ class MPCAcc(AbstractMPC):
 
         action = np.array([acc[:self.N], acc[self.N:]]).T
         self.last_planned_traj = action.copy()
-        return action, braking
+        self.set_action(action, braking)

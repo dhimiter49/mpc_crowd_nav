@@ -94,7 +94,7 @@ class MPCCascVel(MPCVel):
                 self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan +
                 self.stability_coeff * np.eye(2 * self.M * (self.N - 1))
             )
-            self.vec_p = lambda _1, plan, _2, vel: (
+            self.vec_p = lambda __1__, plan, __2__, vel: (
                 -plan + 0.5 * self.DT * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_vel_plan
         elif self.plan_type == "Velocity":
@@ -103,11 +103,11 @@ class MPCCascVel(MPCVel):
             )
 
 
-            def vec_p(_1, _2, plan_vels, vel):
+            def vec_vel_p(__1__, __2__, plan_vels, vel):
                 plan_vels[:self.M] += vel[0]
                 plan_vels[self.M:] += vel[1]
                 return -plan_vels.T @ self.casc_mat_vel_plan
-            self.vec_p = vec_p
+            self.vec_p = vec_vel_p
         elif self.plan_type == "PositionVelocity":
             self.vel_coeff = 0.5
             self.mat_Q = scipy.sparse.csc_matrix(
@@ -116,34 +116,39 @@ class MPCCascVel(MPCVel):
             )
 
 
-            def vec_p(_, plan_pos, plan_vels, vel):
+            def vec_posvel_p(_, plan_pos, plan_vels, vel):
                 plan_vels[:self.M] += vel[0]
                 plan_vels[self.M:] += vel[1]
                 return (-plan_pos + 0.5 * self.DT * np.repeat(vel, self.M)).T @ \
                     self.casc_mat_pos_vel_plan - self.vel_coeff * plan_vels.T  @\
                     self.casc_mat_vel_plan
-            self.vec_p = vec_p
+            self.vec_p = vec_posvel_p
         else:
             raise NotImplementedError
 
-        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const((self.N - 1) * self.M)
-        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N * self.M)
+        self.gen_vel_const((self.N - 1) * self.M)
+        self.gen_acc_const(self.N * self.M)
         self.last_planned_traj_casc = np.zeros((self.M * (self.N - 1) * 2))
 
 
-    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel, crowd_vels=None):
-        for member in range(crowd_poss.shape[1]):
-            if (not isinstance(self.CONST_DIST_CROWD, float) and
+    def gen_crowd_const(self, **kwargs):
+        const_M = kwargs["const_M"]
+        const_b = kwargs["const_b"]
+        crowd_poss = kwargs["crowd_poss"]
+        vel = kwargs["agent_vel"]
+        crowd_vels = kwargs["crowd_vels"]
+        for i, member in enumerate(range(crowd_poss.shape[1])):
+            dist_to_keep = self.CONST_DIST_CROWD
+            if (isinstance(self.CONST_DIST_CROWD, np.ndarray) and
                len(self.CONST_DIST_CROWD.shape) >= 2 or hasattr(self, "member_indeces")):
                 idx = i
                 if hasattr(self, "member_indeces"):
                     idx = np.where(i < self.member_indeces)[0][0]
-                dist_to_keep = self.CONST_DIST_CROWD[idx]
+                if isinstance(self.CONST_DIST_CROWD, np.ndarray):
+                    dist_to_keep = self.CONST_DIST_CROWD[idx]
             else:
                 if isinstance(self.CONST_DIST_CROWD, np.ndarray):
                     dist_to_keep = self.CONST_DIST_CROWD.copy()
-                else:
-                    dist_to_keep = self.CONST_DIST_CROWD
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
             if ignore:
                 continue
@@ -184,8 +189,11 @@ class MPCCascVel(MPCVel):
         return np.array(idxs, dtype=int)
 
 
-    def lin_pos_constraint(self, const_M, const_b, line_eq, vel):
-        """The linear position constraint is given by the equation ax+yb+c"""
+    def lin_pos_constraint(self, **kwargs):
+        const_M = kwargs["const_M"]
+        const_b = kwargs["const_b"]
+        line_eq = kwargs["line_eq"]
+        vel = kwargs["vel"]
         for line in line_eq:
             mat_line = np.hstack([
                 np.eye(self.N * self.M) * line[0], np.eye(self.N * self.M) * line[1]
@@ -226,19 +234,15 @@ class MPCCascVel(MPCVel):
         return casc_crowd_poss
 
 
-    def terminal_const(self, vel):
-        return None, None
-
-
-    def traj_from_plan(self, agent_vel):
+    def traj_from_plan(self, current_vel):
         # all_future_pos = np.repeat(self.current_pos, self.M * self.N) +\
-        #     0.5 * self.DT * np.repeat(agent_vel, self.M * self.N) +\
+        #     0.5 * self.DT * np.repeat(current_vel, self.M * self.N) +\
         #     self.casc_mat_pos_vel @ self.last_planned_traj_casc
         # all_future_pos = np.array([
         #     all_future_pos[:self.N * self.M], all_future_pos[self.N * self.M:]
         # ]).T
         all_future_pos = np.repeat(self.current_pos, self.M + self.N) +\
-            0.5 * self.DT * np.repeat(agent_vel, self.M + self.N) +\
+            0.5 * self.DT * np.repeat(current_vel, self.M + self.N) +\
             self.mat_pos_vel @ self.last_planned_traj.flatten('F')
         all_future_pos = np.array([
             all_future_pos[:self.N + self.M], all_future_pos[self.N + self.M:]
@@ -246,7 +250,9 @@ class MPCCascVel(MPCVel):
         return all_future_pos
 
 
-    def __call__(self, plan, obs):
+    def __call__(self, **kwargs):
+        plan = kwargs["plan"]
+        obs = kwargs["obs"]
         # goal, crowd_poss, agent_vel, crowd_vels, walls = obs
         # crowd_poss = self.calculate_crowd_poss(
         #     crowd_poss.reshape(-1, 2), crowd_vels
@@ -279,4 +285,4 @@ class MPCCascVel(MPCVel):
         ]).T
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
-        return action, braking
+        self.set_action(action, braking)

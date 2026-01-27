@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Tuple
 import numpy as np
 from qpsolvers import solve_qp
 import scipy
@@ -48,6 +48,7 @@ class AbstractMPC:
         """
         # vars
         self.N = horizon
+        self.M = horizon
         self.plan_horizon = self.N
         self.horizon_tries = horizon_tries
         self.short_hor_only_crowd = False
@@ -98,26 +99,49 @@ class AbstractMPC:
 
         # other vars
         self.last_planned_traj = np.zeros((self.N, 2))
+        self.current_pos = np.zeros(2)
         self.last_traj = None
-        self.current_pos = None
         self.pos_horizon = None
         self.last_pos = None
 
 
     def get_action(self, plan, obs):
-        return self.__call__(plan, obs)
+        self.__call__(plan=plan, obs=obs)
+        return self.action, self.braking
 
 
-    def __call__(self, *_):
+    def set_action(self, action, braking):
+        self.action = action
+        self.braking = braking
+
+
+    def __call__(self, **_):
         pass
 
 
-    def gen_crowd_const(self, *_):
+    def gen_crowd_const(self, **_):
         pass
 
 
-    def lin_pos_constraint(self, *_):
+    def terminal_const(self, *_) ->\
+        Tuple[Union[np.ndarray, None], Union[np.ndarray, None]]:
+        return None, None
+
+
+    def lin_pos_constraint(self, **_):
         pass
+
+
+    def set_vel_const(self, mat_vel_const, vec_vel_const):
+        self.mat_vel_const, self.vec_vel_const = mat_vel_const, vec_vel_const
+
+
+    def set_acc_const(self, mat_acc_const, vec_acc_const):
+        self.mat_acc_const, self.vec_acc_const = mat_acc_const, vec_acc_const
+
+
+    def set_opt_conf(self, mat_Q, vec_p):
+        self.mat_Q, self.vec_p = mat_Q, vec_p
 
 
     def core_mpc(self, plan, obs):
@@ -144,11 +168,19 @@ class AbstractMPC:
             crowd_poss = self.calculate_crowd_poss(
                 crowd_poss.reshape(-1, 2), crowd_vels
             )
-            self.gen_crowd_const(const_M, const_b, crowd_poss, vel, crowd_vels)
+            self.gen_crowd_const(
+                const_M=const_M,
+                const_b=const_b,
+                crowd_poss=crowd_poss,
+                agent_vel=vel,
+                crowd_vels=crowd_vels
+            )
         crowd_const_dim = len(const_M)
         wall_eqs = self.wall_eq(walls)
         if len(wall_eqs) != 0:
-            self.lin_pos_constraint(const_M, const_b, wall_eqs, vel)
+            self.lin_pos_constraint(
+                const_M=const_M, const_b=const_b, line_eq=wall_eqs, vel=vel
+            )
         wall_const_dim = len(const_M) - crowd_const_dim
         # idxs = self.find_relevant_idxs(vel)
         const_M.append(self.mat_acc_const)
@@ -384,7 +416,7 @@ class AbstractMPC:
             traj_hor = len(last_traj)
             if "Casc" not in type(self).__name__ and traj_hor < self.N:
                 last_traj = np.concatenate([
-                    last_traj, np.stack([last_traj[-1]]*(self.N - traj_hor), axis=0)
+                    last_traj, np.stack([last_traj[-1]] * (self.N - traj_hor), axis=0)
                 ])
             if "CascVel" in type(self).__name__:
                 last_traj = np.concatenate([last_traj, [last_traj[-1]]])
@@ -439,5 +471,5 @@ class AbstractMPC:
 
     def reset(self):
         self.last_planned_traj *= 0
-        self.current_pos = None
+        self.current_pos = np.zeros(2)
         self.last_traj = None

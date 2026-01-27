@@ -57,15 +57,16 @@ class MPCLinear(MPCAcc):
                 self.mat_pos_acc.T @ self.mat_pos_acc +
                 self.stability_coeff * self.mat_vel_acc.T @ self.mat_vel_acc
             )
-            self.vec_p = lambda _1, plan, _2, vel: (
+            self.vec_p = lambda __1__, plan, __2__, vel: (
                 (-plan + self.vec_pos_vel * np.repeat(vel, self.N)).T @
                 self.mat_pos_acc + self.stability_coeff * np.repeat(vel, self.N) @
                 self.mat_vel_acc
             )
         elif self.plan_type == "Velocity":
             self.mat_Q = scipy.sparse.csc_matrix(self.mat_vel_acc.T @ self.mat_vel_acc)
-            self.vec_p = lambda _1, _2, vel_plan, vel: (-vel_plan).T @ self.mat_vel_acc
+            self.vec_p = lambda __1__, __2__, vel_plan, __3__: \
+                (-vel_plan).T @ self.mat_vel_acc
 
 
-    def __call__(self, plan, obs):
-        return super().__call__(plan, obs)
+    def __call__(self, **kwargs):
+        super().__call__(**kwargs)

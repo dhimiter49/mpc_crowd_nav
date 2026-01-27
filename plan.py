@@ -111,13 +111,12 @@ class RRT_Plan(Plan):
                 goal_bias=0.1,
                 goal_tolerance_xy=0.5,
             )
-            path_found = False
+            path = None
             for _ in range(self.n_tries):
                 if rrt.build():
                     path = rrt.get_path()
-                    path_found = True
                     break
-            if path_found:
+            if path is not None:
                 path = np.array(path)
                 print("Path found from RRT, time to goal", round(path[-1][-1], 2))
                 self.time_path = path

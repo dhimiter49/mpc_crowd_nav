@@ -44,22 +44,28 @@ class MPC_SQP_CascVel(MPCCascVel):
         )
         self.lin_crowd_const = lin_crowd_const
         self.sqp_loops = 30
-        self.last_sqp_solution = np.zeros(2 * (self.M * (self.N - 1)))
+        self.last_sqp_solution = np.zeros(2 * self.M * (self.N - 1), dtype=np.float64)
         mat_pos_vel_quad = self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan
+        mat_pos_vel_quad = mat_pos_vel_quad.astype(np.float64)
         self.mat_Q = scipy.sparse.csc_matrix(mat_pos_vel_quad)
-        def vec_p(_1, plan, _2, vel, crowd=None):
+
+
+        def vec_pos_p(__1__, plan, __2__, vel):
             goal_obj = mat_pos_vel_quad @ self.last_sqp_solution +\
                 (-plan + 0.5 * self.DT * np.repeat(vel, self.M)).T  @\
                 self.casc_mat_pos_vel_plan
             return goal_obj
-        self.vec_p = vec_p
+        self.vec_p = vec_pos_p
 
-        self.mat_vel_const, self.vec_vel_const = self.gen_vel_const((self.N - 1) * self.M)
-        self.mat_acc_const, self.vec_acc_const = self.gen_acc_const(self.N * self.M)
+        self.gen_vel_const((self.N - 1) * self.M)
+        self.gen_acc_const(self.N * self.M)
 
 
-    def lin_pos_constraint(self, const_M, const_b, line_eq, vel):
-        """The linear position constraint is given by the equation ax+yb+c"""
+    def lin_pos_constraint(self, **kwargs):
+        const_M = kwargs["const_M"]
+        const_b = kwargs["const_b"]
+        line_eq = kwargs["line_eq"]
+        vel = kwargs["vel"]
         for line in line_eq:
             mat_line = np.hstack([
                 np.eye(self.N * self.M) * line[0], np.eye(self.N * self.M) * line[1]
@@ -81,7 +87,9 @@ class MPC_SQP_CascVel(MPCCascVel):
             return -np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc) @\
                 self.last_sqp_solution + sgn_acc * (b_a_ + M_a_ @ agent_vel_ / self.DT)
 
-        return np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc), acc_vec_const
+        self.set_acc_const(
+            np.einsum("ij,i->ij", M_a_ @ self.mat_acc_vel, sgn_acc), acc_vec_const
+        )
 
 
     def gen_vel_const(self, horizon):
@@ -99,23 +107,28 @@ class MPC_SQP_CascVel(MPCCascVel):
             return ret if idxs is None else ret[idxs]
 
 
-        return mat_vel_const, vec_vel_const
+        self.set_vel_const(mat_vel_const, vec_vel_const)
 
 
-    def gen_crowd_const(self, const_M, const_b, crowd_poss, vel, crowd_vels=None):
+    def gen_crowd_const(self, **kwargs):
+        const_M = kwargs["const_M"]
+        const_b = kwargs["const_b"]
+        crowd_poss = kwargs["crowd_poss"]
+        vel = kwargs["agent_vel"]
+        crowd_vels = kwargs["crowd_vels"]
         for i, member in enumerate(range(crowd_poss.shape[1])):
             # if considering uncertainty update the distance to the crowd
-            if (not isinstance(self.CONST_DIST_CROWD, float) and
+            dist_to_keep = self.CONST_DIST_CROWD
+            if (isinstance(self.CONST_DIST_CROWD, np.ndarray) and
                len(self.CONST_DIST_CROWD.shape) >= 2 or hasattr(self, "member_indeces")):
                 idx = i
                 if hasattr(self, "member_indeces"):
                     idx = np.where(i < self.member_indeces)[0][0]
-                dist_to_keep = self.CONST_DIST_CROWD[idx]
+                if isinstance(self.CONST_DIST_CROWD, np.ndarray):
+                    dist_to_keep = self.CONST_DIST_CROWD[idx]
             else:
                 if isinstance(self.CONST_DIST_CROWD, np.ndarray):
                     dist_to_keep = self.CONST_DIST_CROWD.copy()
-                else:
-                    dist_to_keep = self.CONST_DIST_CROWD
 
             # ignore if two far and different direction
             poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
@@ -163,16 +176,14 @@ class MPC_SQP_CascVel(MPCCascVel):
                 ) @ self.last_sqp_solution
                 vec_crowd = (term_dist_crowd + term_agent_vel) @ self.last_sqp_solution +\
                     0.5 * np.einsum(
-                        "i,ji->j",
-                        self.last_sqp_solution,
-                        term_quadratic
-                    ) + np.einsum(
-                        "ij,ij->i", poss, poss
-                    ) + self.DT * np.einsum(
-                        "ij,ij->i", poss, agent_vel_par
-                    ) + 0.25 * self.DT ** 2 * np.einsum(
-                        "ij,ij->i", agent_vel_par, agent_vel_par
-                    ) - np.array(dist_to_keep) ** 2
+                        "i,ji->j", self.last_sqp_solution, term_quadratic
+                ) + np.einsum(
+                    "ij,ij->i", poss, poss
+                ) + self.DT * np.einsum(
+                    "ij,ij->i", poss, agent_vel_par
+                ) + 0.25 * self.DT ** 2 * np.einsum(
+                    "ij,ij->i", agent_vel_par, agent_vel_par
+                ) - np.array(dist_to_keep) ** 2
                 mat_crowd_control = -(term_dist_crowd + term_agent_vel + term_quadratic)
 
             # update/add constraints
@@ -180,11 +191,14 @@ class MPC_SQP_CascVel(MPCCascVel):
             const_b.append(vec_crowd)
 
 
-    def __call__(self, plan, obs):
+    def __call__(self, **kwargs):
+        plan = kwargs["plan"]
+        obs = kwargs["obs"]
         tries = self.sqp_loops
         braking = False
         _, _, current_vel, _, _, _ = obs
-        last_action = None
+        last_action = self.last_sqp_solution
+        action = np.zeros((self.N, 2))
         while (
             (
                 tries == self.sqp_loops or
@@ -196,7 +210,7 @@ class MPC_SQP_CascVel(MPCCascVel):
             step = self.core_mpc(plan, obs)
             braking = step is None
 
-            if braking:
+            if step is None:
                 # print("Executing last computed braking trajectory!")
                 vel = self.last_planned_traj[1:].flatten("F")
                 self.last_planned_traj_casc = np.concatenate([
@@ -225,9 +239,9 @@ class MPC_SQP_CascVel(MPCCascVel):
             self.last_planned_traj = action.copy()
             tries -= 1
         self.last_traj = self.traj_from_plan(current_vel)
-        return action, braking
+        self.set_action(action, braking)
 
 
     def reset(self):
         super().reset()
-        self.last_sqp_solution = np.zeros(2 * (self.N - 1) * self.M)
+        self.last_sqp_solution = np.zeros(2 * (self.N - 1) * self.M, dtype=np.float64)

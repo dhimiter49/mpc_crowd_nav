@@ -7,7 +7,7 @@ def gen_polygon(radius, sides=8):
 
     polygon = [[radius, 0]]
     for i in range(1, sides + 1):
-        polygon.append(rot_mat(2 * np.pi / sides) @ polygon[i - 1])
+        polygon.append(list(rot_mat(2 * np.pi / sides) @ np.array(polygon[i - 1])))
     polygon_lines = []
     for i in range(sides):
         m = (polygon[i][1] - polygon[i + 1][1]) / (polygon[i][0] - polygon[i + 1][0])
