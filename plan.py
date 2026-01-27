@@ -7,6 +7,7 @@ class Plan:
         self.N = horizon
         self.DT = dt
         self.MAX_VEL = max_vel
+        self.time_path = np.zeros((self.N, 3))
 
 
     def plan(self, goal, current_pos):
@@ -44,6 +45,8 @@ class Plan:
         steps[n_steps:, :] += goal
         vels_steps = int(dist / (self.MAX_VEL * self.DT))
         vels[vels_steps:, :] = np.zeros(2)
+        self.time_path[:, :2] = steps
+        self.time_path[:, 2] = np.arange(0, self.N * self.DT, self.DT)
         return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
@@ -64,11 +67,11 @@ class Plan:
 
 
 class RRT_Plan(Plan):
-    def __init__(self, horizon: int, dt: float, max_vel: float, const_ctrl: bool):
+    def __init__(self, horizon: int, dt: float, max_vel: float):
         super().__init__(horizon, dt, max_vel)
         self.path = None
-        self.const_ctrl = const_ctrl
         self.step = 0
+        self.n_tries = 30
 
 
     def __call__(self, obs, current_pos):
@@ -108,28 +111,36 @@ class RRT_Plan(Plan):
                 goal_bias=0.1,
                 goal_tolerance_xy=0.5,
             )
-
-            while True:
+            path_found = False
+            for _ in range(self.n_tries):
                 if rrt.build():
                     path = rrt.get_path()
+                    path_found = True
                     break
-            path = np.array(path)
-            self.rrt_path = path
-            max_time = path[-1][2]
+            if path_found:
+                path = np.array(path)
+                print("Path found from RRT, time to goal", round(path[-1][-1], 2))
+                self.time_path = path
+                max_time = path[-1][2]
 
-            sample_time = np.arange(0, max_time, self.DT)
-            interpol_x = np.interp(sample_time, path[:, 2], path[:, 0])[1:]
-            interpol_y = np.interp(sample_time, path[:, 2], path[:, 1])[1:]
-            traj_len = len(interpol_x)
-            if traj_len < self.N:
-                interpol_x = np.concatenate([
-                    interpol_x, np.repeat(interpol_x[-1], self.N - traj_len)
-                ])
-                interpol_y = np.concatenate([
-                    interpol_y, np.repeat(interpol_y[-1], self.N - traj_len)
-                ])
-            self.path = np.concatenate([interpol_x[:self.N], interpol_y[:self.N]])
-            path = self.path.copy()
+                sample_time = np.arange(0, max_time, self.DT)
+                interpol_x = np.interp(sample_time, path[:, 2], path[:, 0])[1:]
+                interpol_y = np.interp(sample_time, path[:, 2], path[:, 1])[1:]
+                traj_len = len(interpol_x)
+                if traj_len < self.N:
+                    interpol_x = np.concatenate([
+                        interpol_x, np.repeat(interpol_x[-1], self.N - traj_len)
+                    ])
+                    interpol_y = np.concatenate([
+                        interpol_y, np.repeat(interpol_y[-1], self.N - traj_len)
+                    ])
+                self.path = np.concatenate([interpol_x[:self.N], interpol_y[:self.N]])
+                path = self.path.copy()
+            else:
+                print("Path not found from RRT!")
+                self.time_path[:, 2] = np.arange(0., self.N * self.DT + 1e-8, self.DT)
+                path = np.zeros(self.N * 2)  # dont move
+                self.path = path
         else:
             path = np.array([self.path[:self.N], self.path[self.N:]]).T + self.ref_pos
             # closest_index = np.argmin(np.linalg.norm(path - current_pos, axis=-1))

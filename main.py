@@ -144,10 +144,7 @@ if "-ns" in sys.argv:
 n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
 if "-rrt" in sys.argv:
     planner = RRT_Plan(
-        plan_steps,
-        DT,
-        env.get_wrapper_attr("AGENT_MAX_VEL"),
-        const_ctrl="-cc" in sys.argv
+        plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"),
     )
 else:
     planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
@@ -217,9 +214,8 @@ while count < steps:
         plan = planner.plan(obs, controller[0].current_pos)
 
     # Visualize robot trajecotry and the separating constraints between crowd and agent
-    # None if mpc_type == "simple" else env.get_wrapper_attr("set_trajectory")(
-    #     *planner.prepare_plot(plan, plan_steps)
-    # )
+    if mpc_type != "simple" or "-rrt" in sys.argv:
+        env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(plan, plan_steps))
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
 
@@ -258,6 +254,8 @@ while count < steps:
                     braking_steps[i] *= -1  # (-) meaning that there was but not anymore
         actions = [np.array(actions).flatten()]
     else:
+        if R > 40:
+            print("Computing motion...")
         control_plan, braking_flag = controller[0].get_action(plan, obs)
         # traj = controller[0].traj_from_plan(obs[2])
         # env.set_trajectory(traj)

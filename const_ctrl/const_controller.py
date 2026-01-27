@@ -16,19 +16,12 @@ class ConstController:
 
 
     def get_action(self, *args):
-        pos_time_plan = self.planner.rrt_path
-        time_checkpoints = pos_time_plan[:, 2]
-        last_index = np.where(self.current_time >= time_checkpoints)[0][-1]
+        pos_time_plan = self.planner.time_path
+        dist = pos_time_plan[1:, :2] - pos_time_plan[:-1, :2]
+        vel = dist / self.DT
+        vel = np.concatenate([vel, np.zeros((1, 2))])
 
-        if last_index < len(pos_time_plan) - 1:
-            time_interval = pos_time_plan[last_index + 1, 2] -\
-                pos_time_plan[last_index, 2]
-            vel = (pos_time_plan[last_index + 1, :2] - pos_time_plan[last_index, :2]) /\
-                time_interval
-        else:
-            vel = np.zeros(2)
-        self.current_time += self.DT
-        return [vel], False
+        return vel, False
 
 
     def reset(self):
