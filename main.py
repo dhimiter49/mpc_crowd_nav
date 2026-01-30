@@ -51,6 +51,7 @@ PLAN_DICT = {
 
 ###############################  READING INPUT PARAMETERS  ###############################
 gen_data = "-gd" in sys.argv  # option to generate data from MPC
+gen_motion= "-gm" in sys.argv  # option to generate moition, need only init observation
 velocity_str = "Vel" if "-v" or "-sqp" in sys.argv else ""
 env_str = ""
 crowd_shift_idx = 0
@@ -183,6 +184,9 @@ dataset = np.empty((
     steps,
     np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
 )) if gen_data else None
+motions = np.empty((
+    steps, (env.unwrapped.n_crowd + 1) * 4 + N * 2
+)) if gen_motion else None
 obs = env.reset()
 plan = np.zeros((N, 2))
 returns, ep_return, vels, action = [], 0., [], np.array([0, 0])
@@ -196,11 +200,20 @@ braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
 progress_bar = tqdm(total=steps, desc="Processing")
 
 reward, terminated, truncated = None, None, None
+init_obs = None
+motion_actions = []
 
 # Main loop
 while count < steps:
     old_obs = obs[0].copy() if isinstance(obs, tuple) else obs.copy()
     obs = obs_handler(obs)  # change observation to necessary format for mpc
+    if init_obs is None and gen_motion:
+        crowd_poss, crowd_vels = env.get_wrapper_attr("crowd_pos_vel")
+        current_pos = [env.get_wrapper_attr("current_pos")]
+        current_vel = [env.get_wrapper_attr("current_vel")]
+        init_obs = np.concatenate([
+            current_pos, crowd_poss, current_vel, crowd_vels
+        ]).flatten()
 
     # get plan(s)
     if n_agents > 1:
@@ -266,6 +279,7 @@ while count < steps:
 
     # take step in the environment
     for a in actions:
+        motion_actions.append(a) if gen_motion else None
         env.render() if render else None
         obs, reward, terminated, truncated, info = env.step(a)
         if terminated or truncated:
@@ -298,6 +312,11 @@ while count < steps:
                 planner.reset()
         returns.append(ep_return)
         ep_return = 0
+        if gen_motion:
+            motion_actions = np.array(motion_actions).flatten()
+            motions[ep_count] = np.concatenate([init_obs, motion_actions]).flatten()
+            init_obs = None
+            motion_actions = []
         ep_count += 1
         ep_step_count = 0
         progress_bar.update(1) if not gen_data else None
@@ -307,6 +326,9 @@ while count < steps:
 # Save data if generating data
 if gen_data:
     np.save("dataset_" + env_str + ".npy", dataset)
+
+if gen_motion:
+    np.save("motions_" + env_str + ".npy", motions)
 
 # Print and save results
 # print("Diffs: ", result.stdout)
