@@ -313,7 +313,10 @@ while count < steps:
         returns.append(ep_return)
         ep_return = 0
         if gen_motion:
-            motion_actions = np.array(motion_actions).flatten()
+            motion_actions = np.array(motion_actions)
+            motion_actions = np.concatenate([
+                motion_actions, np.zeros((N - len(motion_actions), 2))
+            ]).flatten()
             motions[ep_count] = np.concatenate([init_obs, motion_actions]).flatten()
             init_obs = None
             motion_actions = []

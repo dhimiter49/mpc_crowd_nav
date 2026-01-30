@@ -173,7 +173,8 @@ class AbstractMPC:
                 const_b=const_b,
                 crowd_poss=crowd_poss,
                 agent_vel=vel,
-                crowd_vels=crowd_vels
+                crowd_vels=crowd_vels,
+                plan=pos_plan
             )
         crowd_const_dim = len(const_M)
         wall_eqs = self.wall_eq(walls)
@@ -397,7 +398,7 @@ class AbstractMPC:
         return idxs
 
 
-    def ignore_crowd_member(self, crowd_poss, member, agent_vel):
+    def ignore_crowd_member(self, crowd_poss, member, agent_vel, plan):
         """
         Ignore crowd members that are too far or in another direction.
 
@@ -411,6 +412,8 @@ class AbstractMPC:
         zero_idx = np.where(np.linalg.norm(poss, axis=-1) == 0)[0]
         poss[zero_idx] += 1e-8
         poss_ = poss.copy()
+        if self.last_traj is None:
+            poss_ -= np.array([plan[:self.N], plan[self.N:]]).T
         if self.last_traj is not None:
             last_traj = self.last_traj[1:]
             traj_hor = len(last_traj)
