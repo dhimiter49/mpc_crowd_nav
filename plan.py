@@ -87,7 +87,7 @@ class RRT_Plan(Plan):
                     pos[0], pos[1],
                     0, self.N * self.DT,
                     vel[0], vel[1],
-                    radius
+                    radius + 0.05
                 ))
             right, left, down, up = walls
             rectangles = [
@@ -104,7 +104,7 @@ class RRT_Plan(Plan):
                 obstacles=obstacles,
                 rectangles=rectangles,
                 t_range=(0, self.N * self.DT),
-                robot_radius=0.42,
+                robot_radius=0.45,
                 v_max=self.MAX_VEL,
                 dt=0.1,
                 max_iter=40000,

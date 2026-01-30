@@ -61,7 +61,7 @@ class AbstractMPC:
         self.CROWD_MAX_ACC = crowd_max_acc
         self.MAX_TIME_STOP = self.AGENT_MAX_VEL / self.AGENT_MAX_ACC
         self.MAX_DIST_STOP = 2 * self.AGENT_MAX_VEL * self.MAX_TIME_STOP
-        self.MAX_DIST_STOP_CROWD = 6  # arbitrary, be careful on variable radii
+        self.MAX_DIST_STOP_CROWD = self.CROWD_MAX_VEL * self.N * self.DT * 2.2
 
         # different constant distance crowd depending on different radii
         if radius_crowd is not None:
