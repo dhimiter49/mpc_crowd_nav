@@ -46,16 +46,23 @@ else:
     env_type = ENV_DICT["-d"]
     env_str = "Navigation%s-v0" % velocity_str
 env = gym.make("fancy/" + env_str)
+# env = gym.wrappers.RecordVideo(
+#     env=env,
+#     video_folder="/home/dhimiter/Videos",
+#     name_prefix="test-video",
+#     episode_trigger=lambda x: x % 2 == 0
+# )
 env.reset()
 n_crowd = env.unwrapped.n_crowd
+# env.start_video_recorder()
 
+print("There are " + str(len(motion_data)) + " trajectories to animate.")
 for trajectory_data in motion_data:
     agent_pos = trajectory_data[:2]
     crowd_poss = trajectory_data[2:2 + n_crowd * 2]
     agent_vel = trajectory_data[2 + n_crowd * 2:4 + n_crowd * 2]
     crowd_vels = trajectory_data[4 + n_crowd * 2:4 + n_crowd * 4]
     goal_pos = trajectory_data[4 + n_crowd * 4:6 + n_crowd * 4]
-    print(agent_pos)
     env.hard_set_vars(
         {
             "_agent_pos": agent_pos,
@@ -78,3 +85,6 @@ for trajectory_data in motion_data:
 
     env.render()
     env.reset()
+
+# env.close_video_recorder()
+# env.close()
