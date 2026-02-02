@@ -51,7 +51,7 @@ PLAN_DICT = {
 
 ###############################  READING INPUT PARAMETERS  ###############################
 gen_data = "-gd" in sys.argv  # option to generate data from MPC
-gen_motion= "-gm" in sys.argv  # option to generate moition, need only init observation
+gen_motion = "-gm" in sys.argv  # option to generate moition, need only init observation
 velocity_str = "Vel" if "-v" or "-sqp" in sys.argv else ""
 env_str = ""
 crowd_shift_idx = 0
@@ -185,7 +185,8 @@ dataset = np.empty((
     np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
 )) if gen_data else None
 motions = np.empty((
-    steps, (env.unwrapped.n_crowd + 1) * 4 + N * 2
+    # pos and vel, goal pos, actions, plan
+    steps, (env.unwrapped.n_crowd + 1) * 4 + 2 + N * 4
 )) if gen_motion else None
 obs = env.reset()
 plan = np.zeros((N, 2))
@@ -211,8 +212,9 @@ while count < steps:
         crowd_poss, crowd_vels = env.get_wrapper_attr("crowd_pos_vel")
         current_pos = [env.get_wrapper_attr("current_pos")]
         current_vel = [env.get_wrapper_attr("current_vel")]
+        goal_pos = [env.get_wrapper_attr("goal_pos")]
         init_obs = np.concatenate([
-            current_pos, crowd_poss, current_vel, crowd_vels
+            current_pos, crowd_poss, current_vel, crowd_vels, goal_pos
         ]).flatten()
 
     # get plan(s)
@@ -317,7 +319,9 @@ while count < steps:
             motion_actions = np.concatenate([
                 motion_actions, np.zeros((N - len(motion_actions), 2))
             ]).flatten()
-            motions[ep_count] = np.concatenate([init_obs, motion_actions]).flatten()
+            motions[ep_count] = np.concatenate([
+                init_obs, plan[0].flatten(), motion_actions
+            ]).flatten()
             init_obs = None
             motion_actions = []
         ep_count += 1
