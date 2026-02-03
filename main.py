@@ -334,8 +334,16 @@ while count < steps:
 if gen_data:
     np.save("dataset_" + env_str + ".npy", dataset)
 
+plan_str = "rrt" if "-rrt" in sys.argv else ""
 if gen_motion:
-    np.save("motions_" + env_str + ".npy", motions)
+    np.save(
+        "motions_" + env_str + "_" +
+        mpc_type + "_" +
+        str(N) + "_" + str(R) + "_" +
+        "ps-" + str(mpc_kwargs.get("passive_safety", True)) +
+        plan_str +
+        ".npy", motions
+    )
 
 # Print and save results
 # print("Diffs: ", result.stdout)
