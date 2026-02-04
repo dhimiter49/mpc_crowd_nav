@@ -186,7 +186,7 @@ dataset = np.empty((
 )) if gen_data else None
 motions = np.empty((
     # pos and vel, goal pos, actions, plan
-    steps, (env.unwrapped.n_crowd + 1) * 4 + 2 + N * 4
+    steps, (env.unwrapped.n_crowd + 1) * 4 + 2 + env.unwrapped.MAX_EPISODE_STEPS * 4
 )) if gen_motion else None
 obs = env.reset()
 plan = np.zeros((N, 2))
@@ -317,7 +317,8 @@ while count < steps:
         if gen_motion:
             motion_actions = np.array(motion_actions)
             motion_actions = np.concatenate([
-                motion_actions, np.zeros((N - len(motion_actions), 2))
+                motion_actions,
+                np.zeros((env.unwrapped.MAX_EPISODE_STEPS - len(motion_actions), 2))
             ]).flatten()
             motions[ep_count] = np.concatenate([
                 init_obs, plan[0].flatten(), motion_actions
@@ -337,6 +338,7 @@ if gen_data:
 plan_str = "rrt" if "-rrt" in sys.argv else ""
 if gen_motion:
     np.save(
+        str(Path.home()) + "/Documents/RAM/results/" +
         "motions_" + env_str + "_" +
         mpc_type + "_" +
         str(N) + "_" + str(R) + "_" +
