@@ -280,12 +280,14 @@ while count < steps:
             tot_braking_steps += 1 if braking_flag and not old_braking_flags[0] else 0
 
     # take step in the environment
+    reward = 0
     for a in actions:
         motion_actions.append(a) if gen_motion else None
-        env.render() if render else None
-        obs, reward, terminated, truncated, info = env.step(a)
-        if terminated or truncated:
-            break
+        if not gen_motion:
+            env.render() if render else None
+            obs, reward, terminated, truncated, info = env.step(a)
+            if terminated or truncated:
+               break
 
     # update auxiliary variables
     step_count += 1
@@ -301,7 +303,7 @@ while count < steps:
     ep_return += reward
     ep_step_count += 1
     old_braking_flags = braking_flags
-    if terminated or truncated:
+    if terminated or truncated or gen_motion:
         # print("braking flags: ", braking_flags)
         # print("braking steps: ", braking_steps)
         braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
