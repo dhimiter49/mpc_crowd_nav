@@ -196,7 +196,7 @@ ep_step_count = 0
 step_count = 0
 tot_braking_steps = 0
 count = step_count if gen_data else ep_count
-old_braking_flags = None
+old_braking_flags = False
 braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
 progress_bar = tqdm(total=steps, desc="Processing")
 
@@ -239,10 +239,6 @@ while count < steps:
     if n_agents > 1:
         actions = []
         output, processes, queues = [], [], []
-        # for i, (_plan, _obs) in enumerate(zip(plan, obs)):
-        #     control, braking = controller[i].get_action(_plan, _obs)
-        #     actions.append(control[0])
-        # actions = np.array(actions).flatten()
         for i, (_plan, _obs) in enumerate(zip(plan, obs)):
             q = mp.Queue()
             p = mp.Process(target=mpc_get_action, args=(controller[i], _plan, _obs, q))
@@ -276,8 +272,7 @@ while count < steps:
         # env.set_trajectory(traj)
         actions = control_plan[:R]  # only one agent so only one action
         braking_flags[0] = braking_flag
-        if old_braking_flags is not None:
-            tot_braking_steps += 1 if braking_flag and not old_braking_flags[0] else 0
+        tot_braking_steps += 1 if braking_flag and not old_braking_flags else 0
 
     # take step in the environment
     reward = 0
@@ -302,12 +297,11 @@ while count < steps:
         ])
     ep_return += reward
     ep_step_count += 1
-    old_braking_flags = braking_flags
     if terminated or truncated or gen_motion:
         # print("braking flags: ", braking_flags)
         # print("braking steps: ", braking_steps)
         braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
-        old_braking_flags = None
+        old_braking_flags = False
         env.render() if render else None
         if not (ep_count == steps - 1 and env.get_wrapper_attr("run_test_case")):
             obs = env.reset()
