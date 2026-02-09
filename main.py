@@ -90,6 +90,7 @@ render = "-nr" not in sys.argv
 N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
 M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
+mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
 DT = env.unwrapped.dt
 
 
@@ -185,11 +186,12 @@ dataset = np.empty((
     np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
 )) if gen_data else None
 motions = np.empty((
+    steps * mult_plan,
     # pos and vel, goal pos, actions, plan
-    steps, (env.unwrapped.n_crowd + 1) * 4 + 2 + env.unwrapped.MAX_EPISODE_STEPS * 4
+    (env.unwrapped.n_crowd + 1) * 4 + 2 + env.unwrapped.MAX_EPISODE_STEPS * 4
 )) if gen_motion else None
 obs = env.reset()
-plan = np.zeros((N, 2))
+plan = []
 returns, ep_return, vels, action = [], 0., [], np.array([0, 0])
 ep_count = 0
 ep_step_count = 0
@@ -202,7 +204,7 @@ progress_bar = tqdm(total=steps, desc="Processing")
 
 reward, terminated, truncated = None, None, None
 init_obs = None
-motion_actions = []
+motion_actions = [[] for _ in range(mult_plan)]
 
 # Main loop
 while count < steps:
@@ -226,63 +228,67 @@ while count < steps:
             controller[i].current_pos = crowd_poss[i]
     else:
         controller[0].current_pos = env.get_wrapper_attr("_agent_pos")
-        plan = planner.plan(obs, controller[0].current_pos)
+        for _ in range(mult_plan):
+            plan.append(planner.plan(obs, controller[0].current_pos))
+            planner.reset()
 
     # Visualize robot trajecotry and the separating constraints between crowd and agent
     if mpc_type != "simple" or "-rrt" in sys.argv:
-        env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(plan, plan_steps))
+        env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(plan[0], plan_steps))
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
 
     # Compute controller next action and if a braking trajectory is executed
-    braking_flags = np.array([False] * n_agents)
-    if n_agents > 1:
-        actions = []
-        output, processes, queues = [], [], []
-        for i, (_plan, _obs) in enumerate(zip(plan, obs)):
-            q = mp.Queue()
-            p = mp.Process(target=mpc_get_action, args=(controller[i], _plan, _obs, q))
-            processes.append(p)
-            queues.append(q)
-            p.start()
-        for q in queues:
-            results = q.get()
-            output += results
-        for p in processes:
-            p.join()
-        for i in range(n_agents):
-            control_plan = output[i * 2]
-            braking_flag = output[i * 2 + 1]
-            controller[i].last_planned_traj = control_plan
-            action = control_plan[0]
-            actions.append(action)
-            braking_flags[i] = braking_flag
-            if old_braking_flags is not None:  # at least second step
-                if not old_braking_flags[i] and braking_flag:
-                    # before no braking now braking
-                    braking_steps[i] = ep_step_count
-                if old_braking_flags[i] and not braking_flag:
-                    braking_steps[i] *= -1  # (-) meaning that there was but not anymore
-        actions = [np.array(actions).flatten()]
-    else:
-        if R > 40:
-            print("Computing motion...")
-        control_plan, braking_flag = controller[0].get_action(plan, obs)
-        # traj = controller[0].traj_from_plan(obs[2])
-        # env.set_trajectory(traj)
-        actions = control_plan[:R]  # only one agent so only one action
-        braking_flags[0] = braking_flag
-        tot_braking_steps += 1 if braking_flag and not old_braking_flags else 0
+    for i, p in enumerate(plan):
+        braking_flags = np.array([False] * n_agents)
+        if n_agents > 1:
+            actions = []
+            output, processes, queues = [], [], []
+            for i, (_plan, _obs) in enumerate(zip(plan, obs)):
+                q = mp.Queue()
+                p = mp.Process(target=mpc_get_action, args=(controller[i], _plan, _obs, q))
+                processes.append(p)
+                queues.append(q)
+                p.start()
+            for q in queues:
+                results = q.get()
+                output += results
+            for p in processes:
+                p.join()
+            for i in range(n_agents):
+                control_plan = output[i * 2]
+                braking_flag = output[i * 2 + 1]
+                controller[i].last_planned_traj = control_plan
+                action = control_plan[0]
+                actions.append(action)
+                braking_flags[i] = braking_flag
+                if old_braking_flags is not None:  # at least second step
+                    if not old_braking_flags[i] and braking_flag:
+                        # before no braking now braking
+                        braking_steps[i] = ep_step_count
+                    if old_braking_flags[i] and not braking_flag:
+                        braking_steps[i] *= -1  # (-) meaning that there was but not anymore
+            actions = [np.array(actions).flatten()]
+        else:
+            if R > 40:
+                print("Computing motion...")
+            control_plan, braking_flag = controller[0].get_action(p, obs)
+            # traj = controller[0].traj_from_plan(obs[2])
+            # env.set_trajectory(traj)
+            actions = control_plan[:R]  # only one agent so only one action
+            braking_flags[0] = braking_flag
+            tot_braking_steps += 1 if braking_flag and not old_braking_flags else 0
 
-    # take step in the environment
-    reward = 0
-    for a in actions:
-        motion_actions.append(a) if gen_motion else None
-        if not gen_motion:
-            env.render() if render else None
-            obs, reward, terminated, truncated, info = env.step(a)
-            if terminated or truncated:
-               break
+        # take step in the environment
+        reward = 0
+        for a in actions:
+            motion_actions[i].append(a) if gen_motion else None
+            if not gen_motion:
+                env.render() if render else None
+                obs, reward, terminated, truncated, info = env.step(a)
+                if terminated or truncated:
+                    break
+
 
     # update auxiliary variables
     step_count += 1
@@ -311,16 +317,18 @@ while count < steps:
         returns.append(ep_return)
         ep_return = 0
         if gen_motion:
-            motion_actions = np.array(motion_actions)
-            motion_actions = np.concatenate([
-                motion_actions,
-                np.zeros((env.unwrapped.MAX_EPISODE_STEPS - len(motion_actions), 2))
-            ]).flatten()
-            motions[ep_count] = np.concatenate([
-                init_obs, plan[0].flatten(), motion_actions
-            ]).flatten()
+            for i, (p, motion_act) in enumerate(zip(plan, motion_actions)):
+                motion_act = np.array(motion_act)
+                motion_act = np.concatenate([
+                    motion_act,
+                    np.zeros((env.unwrapped.MAX_EPISODE_STEPS - len(motion_act), 2))
+                ]).flatten()
+                motions[ep_count * mult_plan + i] = np.concatenate([
+                    init_obs, p[0].flatten(), motion_act
+                ]).flatten()
             init_obs = None
-            motion_actions = []
+            motion_actions = [[] for _ in range(mult_plan)]
+        plan = []
         ep_count += 1
         ep_step_count = 0
         progress_bar.update(1) if not gen_data else None
@@ -338,7 +346,8 @@ if gen_motion:
         "motions_" + env_str + "_" +
         mpc_type + "_" +
         str(N) + "_" + str(R) + "_" +
-        "ps-" + str(mpc_kwargs.get("passive_safety", True)) +
+        "ps-" + str(mpc_kwargs.get("passive_safety", True)) + "_" +
+        "mp-" + str(mult_plan) + "_" +
         plan_str +
         ".npy", motions
     )
