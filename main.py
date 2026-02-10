@@ -90,6 +90,7 @@ render = "-nr" not in sys.argv
 N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
 M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
+steps = 1000 if "-st" not in sys.argv else int(sys.argv[sys.argv.index("-st") + 1])
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
 DT = env.unwrapped.dt
 
@@ -180,7 +181,7 @@ def mpc_get_action(mpc, plan, obs, q):
 
 
 #########################  ENVIRONMENT SETUP AND AUXILIARY VARS ##########################
-steps = 1000 if not env.get_wrapper_attr("run_test_case") else 500
+steps = steps if not env.get_wrapper_attr("run_test_case") else 500
 dataset = np.empty((
     steps,
     np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
@@ -220,8 +221,8 @@ while count < steps:
         ]).flatten()
 
     # get plan(s)
+    plan = []
     if n_agents > 1:
-        plan = []
         crowd_poss = env.get_wrapper_attr("_crowd_poss")
         for i, _obs in enumerate(obs):
             plan.append(planner.plan(_obs, None))  # dont need current pos for naive plan
@@ -246,7 +247,9 @@ while count < steps:
             output, processes, queues = [], [], []
             for i, (_plan, _obs) in enumerate(zip(plan, obs)):
                 q = mp.Queue()
-                p = mp.Process(target=mpc_get_action, args=(controller[i], _plan, _obs, q))
+                p = mp.Process(
+                    target=mpc_get_action, args=(controller[i], _plan, _obs, q)
+                )
                 processes.append(p)
                 queues.append(q)
                 p.start()
@@ -267,7 +270,7 @@ while count < steps:
                         # before no braking now braking
                         braking_steps[i] = ep_step_count
                     if old_braking_flags[i] and not braking_flag:
-                        braking_steps[i] *= -1  # (-) meaning that there was but not anymore
+                        braking_steps[i] *= -1  # (-) there was but not anymore
             actions = [np.array(actions).flatten()]
         else:
             if R > 40:
@@ -328,7 +331,6 @@ while count < steps:
                 ]).flatten()
             init_obs = None
             motion_actions = [[] for _ in range(mult_plan)]
-        plan = []
         ep_count += 1
         ep_step_count = 0
         progress_bar.update(1) if not gen_data else None
