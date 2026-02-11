@@ -127,8 +127,11 @@ class MPCCascAcc(MPCAcc):
         const_b = kwargs["const_b"]
         crowd_poss = kwargs["crowd_poss"]
         vel = kwargs["agent_vel"]
+        plan = kwargs["plan"]
         for member in range(crowd_poss.shape[1]):
-            poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
+            poss, vec, ignore = self.ignore_crowd_member(
+                crowd_poss, member, agent_vel, plan
+            )
             if ignore:
                 continue
             mat_crowd = np.hstack([

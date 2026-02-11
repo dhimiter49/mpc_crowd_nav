@@ -126,6 +126,7 @@ class MPCAcc(AbstractMPC):
         const_b = kwargs["const_b"]
         crowd_poss = kwargs["crowd_poss"]
         vel = kwargs["agent_vel"]
+        plan = kwargs["plan"]
         for i, member in enumerate(range(crowd_poss.shape[1])):
             # if considering uncertainty update the distance to the crowd
             dist_to_keep = self.CONST_DIST_CROWD
@@ -135,7 +136,9 @@ class MPCAcc(AbstractMPC):
                 dist_to_keep = self.CONST_DIST_CROWD[idx]
 
             # ignore if two far and different direction
-            poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
+            poss, vec, ignore = self.ignore_crowd_member(
+                crowd_poss, member, agent_vel, plan
+            )
             if ignore:
                 continue
 

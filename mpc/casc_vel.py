@@ -137,6 +137,7 @@ class MPCCascVel(MPCVel):
         crowd_poss = kwargs["crowd_poss"]
         vel = kwargs["agent_vel"]
         crowd_vels = kwargs["crowd_vels"]
+        plan = kwargs["plan"]
         for i, member in enumerate(range(crowd_poss.shape[1])):
             dist_to_keep = self.CONST_DIST_CROWD
             if (isinstance(self.CONST_DIST_CROWD, np.ndarray) and
@@ -149,7 +150,9 @@ class MPCCascVel(MPCVel):
             else:
                 if isinstance(self.CONST_DIST_CROWD, np.ndarray):
                     dist_to_keep = self.CONST_DIST_CROWD.copy()
-            poss, vec, ignore = self.ignore_crowd_member(crowd_poss, member, vel)
+            poss, vec, ignore = self.ignore_crowd_member(
+                crowd_poss, member, agent_vel, plan
+            )
             if ignore:
                 continue
             mat_crowd = np.hstack([
