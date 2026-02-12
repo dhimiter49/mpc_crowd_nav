@@ -91,19 +91,19 @@ for i in range(0, len(motion_data), mult_plan):
         np.linalg.norm(np.array(positions)[:, -1] + agent_pos - goal_pos, axis=-1) < 0.4
     )[0]
     valid_idx = list(set(non_stat_idx) & set(to_goal_idx))
-    if len(valid_idx) == 0:
-        continue
 
     dist = dist[valid_idx]
     positions = np.array(positions)[valid_idx]
-    all_actions = np.array(all_actions)[valid_idx]
+    all_valid_actions = np.array(all_actions)[valid_idx]
     sorted_dist = np.argsort(dist)
     env.get_wrapper_attr("set_all_motions")(np.array(positions)[np.argsort(dist)])
 
-    plan = motion_data[i + sorted_dist[0]][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
+    best_motion_idx = sorted_dist[0] if len(sorted_dist) > 0 else 0
+    plan = motion_data[i + best_motion_idx][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
     plan = np.array([plan[:len(plan) // 2], plan[len(plan) // 2:]]).T
     env.get_wrapper_attr("set_trajectory")(plan)
-    actions = all_actions[sorted_dist[0]]
+    actions = all_valid_actions[best_motion_idx] if len(sorted_dist) > 0\
+        else all_actions[best_motion_idx]
     for a in actions:
         env.render()
         obs, reward, terminated, truncated, info = env.step(a)
