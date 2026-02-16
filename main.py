@@ -52,6 +52,7 @@ PLAN_DICT = {
 ###############################  READING INPUT PARAMETERS  ###############################
 gen_data = "-gd" in sys.argv  # option to generate data from MPC
 gen_motion = "-gm" in sys.argv  # option to generate moition, need only init observation
+read_plan = sys.argv[sys.argv.index("-rm") + 1] if "-rm" in sys.argv else None
 velocity_str = "Vel" if "-v" or "-sqp" in sys.argv else ""
 env_str = ""
 crowd_shift_idx = 0
@@ -82,9 +83,15 @@ else:
     env_type = ENV_DICT["-d"]
     env_str = "Navigation%s-v0" % velocity_str
 env = gym.make("fancy/" + env_str)
-print("Observation space: ", env.observation_space.shape)
-print("Acion space: ", env.action_space.shape)
-obs_handler = ObsHandler(env_type, env.get_wrapper_attr("n_crowd"))
+obs_shape = env.observation_space.shape
+act_shape = env.action_space.shape
+DT = env.unwrapped.dt
+n_crowd = env.unwrapped.n_crowd
+max_ep_steps = env.unwrapped.MAX_EPISODE_STEPS
+
+print("Observation space: ", obs_shape)
+print("Acion space: ", act_shape)
+obs_handler = ObsHandler(env_type, n_crowd)
 render = "-nr" not in sys.argv
 
 N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
@@ -92,7 +99,6 @@ M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
 steps = 1000 if "-st" not in sys.argv else int(sys.argv[sys.argv.index("-st") + 1])
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
-DT = env.unwrapped.dt
 
 
 ####################################  SETTING UP MPC #####################################
@@ -144,7 +150,7 @@ if "-ht" in sys.argv:
 if "-ns" in sys.argv:
     mpc_kwargs["passive_safety"] = False
 
-n_agents = env.get_wrapper_attr("n_crowd") if "-mci" in sys.argv else 1
+n_agents = n_crowd if "-mci" in sys.argv else 1
 if "-rrt" in sys.argv:
     planner = RRT_Plan(
         plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"),
@@ -184,12 +190,12 @@ def mpc_get_action(mpc, plan, obs, q):
 steps = steps if not env.get_wrapper_attr("run_test_case") else 500
 dataset = np.empty((
     steps,
-    np.sum(env.observation_space.shape) * 2 + np.sum(env.action_space.shape) + 1 + 1 + 1
+    np.sum(obs_shape) * 2 + np.sum(act_shape) + 1 + 1 + 1
 )) if gen_data else None
 motions = np.empty((
     steps * mult_plan,
     # pos and vel, goal pos, actions, plan
-    (env.unwrapped.n_crowd + 1) * 4 + 2 + env.unwrapped.MAX_EPISODE_STEPS * 4
+    (n_crowd + 1) * 4 + 2 + max_ep_steps * 4
 )) if gen_motion else None
 obs = env.reset()
 plan = []
@@ -221,17 +227,25 @@ while count < steps:
         ]).flatten()
 
     # get plan(s)
-    plan = []
-    if n_agents > 1:
-        crowd_poss = env.get_wrapper_attr("_crowd_poss")
-        for i, _obs in enumerate(obs):
-            plan.append(planner.plan(_obs, None))  # dont need current pos for naive plan
-            controller[i].current_pos = crowd_poss[i]
+    if read_plan is None:
+        plan = []
+        if n_agents > 1:
+            crowd_poss = env.get_wrapper_attr("_crowd_poss")
+            for i, _obs in enumerate(obs):
+                plan.append(planner.plan(_obs, None))
+                controller[i].current_pos = crowd_poss[i]
+        else:
+            controller[0].current_pos = env.get_wrapper_attr("_agent_pos")
+            for _ in range(mult_plan):
+                plan.append(planner.plan(obs, controller[0].current_pos))
+                planner.reset()
     else:
-        controller[0].current_pos = env.get_wrapper_attr("_agent_pos")
-        for _ in range(mult_plan):
-            plan.append(planner.plan(obs, controller[0].current_pos))
-            planner.reset()
+        print("reading")
+        motion_data = np.load(read_plan)
+        pos_plan = motion_data[
+            count:count + mult_plan, 6 + n_crowd * 4:6 + n_crowd * 4 + N * 2
+        ]
+        plan = list(zip(pos_plan, pos_plan * 0))
 
     # Visualize robot trajecotry and the separating constraints between crowd and agent
     if mpc_type != "simple" or "-rrt" in sys.argv:

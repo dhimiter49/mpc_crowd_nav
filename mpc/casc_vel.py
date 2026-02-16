@@ -151,7 +151,7 @@ class MPCCascVel(MPCVel):
                 if isinstance(self.CONST_DIST_CROWD, np.ndarray):
                     dist_to_keep = self.CONST_DIST_CROWD.copy()
             poss, vec, ignore = self.ignore_crowd_member(
-                crowd_poss, member, agent_vel, plan
+                crowd_poss, member, vel, plan
             )
             if ignore:
                 continue
