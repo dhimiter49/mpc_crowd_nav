@@ -243,19 +243,51 @@ while count < steps:
         print("reading")
         motion_data = np.load(read_plan)
         pos_plan = motion_data[
-            count:count + mult_plan, 6 + n_crowd * 4:6 + n_crowd * 4 + N * 2
+            count * mult_plan:(count + 1) * mult_plan,
+            6 + n_crowd * 4:6 + n_crowd * 4 + N * 2
         ]
+        trajectory_data = motion_data[count * mult_plan]
+        agent_pos = trajectory_data[:2]
+        crowd_poss = trajectory_data[2:2 + n_crowd * 2]
+        agent_vel = trajectory_data[2 + n_crowd * 2:4 + n_crowd * 2]
+        crowd_vels = trajectory_data[4 + n_crowd * 2:4 + n_crowd * 4]
+        goal_pos = trajectory_data[4 + n_crowd * 4:6 + n_crowd * 4]
+        init_obs = np.concatenate([
+            agent_pos, crowd_poss, agent_vel, crowd_vels, goal_pos
+        ])
+        walls = np.array([
+            [env.get_wrapper_attr("W_BORDER") - agent_pos[0],
+             env.get_wrapper_attr("W_BORDER") + agent_pos[0]],
+            [env.get_wrapper_attr("H_BORDER") - agent_pos[1],
+             env.get_wrapper_attr("H_BORDER") + agent_pos[1]]
+        ]).flatten()
+        obs = (
+            goal_pos - agent_pos,
+            (crowd_poss.reshape(-1, 2) - agent_pos).flatten(),
+            agent_vel,
+            crowd_vels,
+            walls,
+            None
+        )
+        env.get_wrapper_attr("hard_set_vars")(
+            {
+                "_agent_pos": agent_pos,
+                "_agent_vel": agent_vel,
+                "_crowd_poss": crowd_poss.reshape(n_crowd, 2),
+                "_crowd_vels": crowd_vels.reshape(n_crowd, 2),
+                "_goal_pos": goal_pos
+            }
+        )
         plan = list(zip(pos_plan, pos_plan * 0))
 
-    # Visualize robot trajecotry and the separating constraints between crowd and agent
-    if mpc_type != "simple" or "-rrt" in sys.argv:
-        env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(plan[0], plan_steps))
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
 
     # Compute controller next action and if a braking trajectory is executed
     for i, p in enumerate(plan):
         braking_flags = np.array([False] * n_agents)
+        if mpc_type != "simple" or "-rrt" in sys.argv:
+            env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(p, plan_steps))
         if n_agents > 1:
             actions = []
             output, processes, queues = [], [], []
@@ -305,6 +337,18 @@ while count < steps:
                 obs, reward, terminated, truncated, info = env.step(a)
                 if terminated or truncated:
                     break
+        if read_plan is not None:
+            env.reset()
+            env.hard_set_vars(
+                {
+                    "_agent_pos": init_obs[:2].copy(),
+                    "_agent_vel": init_obs[2 + n_crowd * 2:4 + n_crowd * 2].copy(),
+                    "_crowd_poss": init_obs[2:2 + n_crowd * 2].reshape(n_crowd, 2).copy(),
+                    "_crowd_vels": init_obs[4 + n_crowd * 2:4 + n_crowd * 4].
+                    reshape(n_crowd, 2).copy(),
+                    "_goal_pos": init_obs[4 + n_crowd * 4:6 + n_crowd * 4].copy()
+                }
+            )
 
 
     # update auxiliary variables
