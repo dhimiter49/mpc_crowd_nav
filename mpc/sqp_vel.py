@@ -25,7 +25,7 @@ class MPC_SQP_Vel(MPCVel):
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,
-        lin_crowd_const: bool = False,
+        lin_crowd_const: bool = True,
         **_
     ):
         super().__init__(

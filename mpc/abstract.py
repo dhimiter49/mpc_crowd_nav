@@ -269,6 +269,37 @@ class AbstractMPC:
         return solution  # control plan
 
 
+    def obj_plan(self, goal):
+        # steps representing the plan (trajectory)
+        steps = np.zeros((self.N, 2))
+        dist = np.linalg.norm(goal)
+
+        # velocity steps representgin also the plan (trajectory)
+        vels = np.stack([(self.AGENT_MAX_VEL) / dist * goal] * self.N).reshape(self.N, 2)
+
+        # find the steps in 1D based on the maximum velocity, if too close than use
+        # directly the goal position
+        if self.AGENT_MAX_VEL * self.DT >= dist:
+            # go directly to goal
+            oneD_steps = np.array([dist])
+        else:
+            # steps to goal, multplying max_vel by 2 seems to work better
+            oneD_steps = np.arange(
+                self.AGENT_MAX_VEL * self.DT, dist, 2 * self.AGENT_MAX_VEL * self.DT
+            )
+
+        # change from 1D steps to 2D using the goal direction
+        twoD_steps = np.array([goal * i / dist for i in oneD_steps])
+
+        # project the steps overshotting the goal to the goal
+        n_steps = min(self.N, len(oneD_steps))
+        steps[:n_steps, :] = twoD_steps[:n_steps]
+        steps[n_steps:, :] += goal
+        vels_steps = int(dist / (self. AGENT_MAX_VEL * self.DT))
+        vels[vels_steps:, :] = np.zeros(2)
+        return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
+
+
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
         """
         Based on the current crowd positions and constant velocities it is possible to
