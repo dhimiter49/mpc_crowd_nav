@@ -225,7 +225,6 @@ while count < steps:
         init_obs = np.concatenate([
             current_pos, crowd_poss, current_vel, crowd_vels, goal_pos
         ]).flatten()
-    fst_obs = obs
 
     # get plan(s)
     if read_plan is None:
@@ -261,7 +260,7 @@ while count < steps:
             [env.get_wrapper_attr("H_BORDER") - agent_pos[1],
              env.get_wrapper_attr("H_BORDER") + agent_pos[1]]
         ]).flatten()
-        obs = (
+        plan_obs = (
             goal_pos - agent_pos,
             (crowd_poss.reshape(-1, 2) - agent_pos).flatten(),
             agent_vel,
@@ -285,7 +284,7 @@ while count < steps:
 
     # Compute controller next action and if a braking trajectory is executed
     for i, p in enumerate(plan):
-        obs = fst_obs
+        obs = plan_obs if read_plan is not None else obs
         braking_flags = np.array([False] * n_agents)
         if mpc_type != "simple" or "-rrt" in sys.argv:
             env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(p, plan_steps))
