@@ -47,6 +47,7 @@ else:
     env_str = "Navigation%s-v0" % velocity_str
 
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
+plot_all_plans = "-ap" in sys.argv
 env = gym.make("fancy/" + env_str)
 DT = env.unwrapped.dt
 # env = gym.wrappers.RecordVideo(
@@ -59,6 +60,7 @@ env.reset()
 n_crowd = env.unwrapped.n_crowd
 # env.start_video_recorder()
 plan_to_motion_time_distance = []
+motion_time = []
 
 print("There are " + str(len(motion_data) // mult_plan) + " episodes.")
 for i in range(0, len(motion_data), mult_plan):
@@ -82,10 +84,11 @@ for i in range(0, len(motion_data), mult_plan):
         motion_data[i + j][6 + n_crowd * 4 + horizon * 2:].reshape(-1, 2)
         for j in range(mult_plan)
     ]
-    # all_plans = [
-    #     motion_data[i + j][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2].reshape(-1, 2)
-    #     for j in range(mult_plan)
-    # ]
+    all_plans = [
+        motion_data[i + j][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
+        .reshape(-1, 2, order='F')
+        for j in range(mult_plan)
+    ]
     positions = [
         np.concatenate([np.array([[0, 0]]), np.cumsum(a * DT, axis=0)])
         for a in all_actions
@@ -100,7 +103,7 @@ for i in range(0, len(motion_data), mult_plan):
     dist = dist[valid_idx]
     positions = np.array(positions)[valid_idx]
     all_valid_actions = np.array(all_actions)[valid_idx]
-    # all_valid_plans = np.array(all_plans)[valid_idx]
+    all_valid_plans = np.array(all_plans)[valid_idx]
     sorted_dist = np.argsort(dist)
     env.get_wrapper_attr("set_all_motions")(
         np.array(positions)[np.flip(np.argsort(dist))]
@@ -109,7 +112,10 @@ for i in range(0, len(motion_data), mult_plan):
     best_motion_idx = sorted_dist[0] if len(sorted_dist) > 0 else 0
     plan = motion_data[i + best_motion_idx][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
     plan = np.array([plan[:len(plan) // 2], plan[len(plan) // 2:]]).T
-    env.get_wrapper_attr("set_trajectory")(plan)
+    if plot_all_plans:
+        env.get_wrapper_attr("set_trajectory")(all_valid_plans)
+    else:
+        env.get_wrapper_attr("set_trajectory")(plan)
     actions = all_valid_actions[best_motion_idx] if len(sorted_dist) > 0\
         else all_actions[best_motion_idx]
     p_time = np.where(np.linalg.norm(plan[1:] - plan[-1], axis=-1) == 0)[0][0] * 0.1
@@ -125,11 +131,14 @@ for i in range(0, len(motion_data), mult_plan):
 
     print("Difference between action time and plan time: " + str(a_time - p_time) + "s")
     plan_to_motion_time_distance.append(a_time - p_time)
+    motion_time.append(a_time)
     env.render()
     env.reset()
 print(plan_to_motion_time_distance)
 print(np.mean(plan_to_motion_time_distance))
 print(np.std(plan_to_motion_time_distance))
+print(motion_time)
+print(np.mean(motion_time))
 
 # env.close_video_recorder()
 # env.close()
