@@ -444,7 +444,21 @@ class AbstractMPC:
         poss[zero_idx] += 1e-8
         poss_ = poss.copy()
         if self.last_traj is None:
-            poss_ -= np.array([plan[:self.N], plan[self.N:]]).T
+            if "Casc" in type(self).__name__:
+                plan = np.array([plan[:self.M], plan[self.M:]]).T
+                casc_plan = np.zeros((self.M * self.N, 2))
+                for i in range(self.M):
+                    if i > self.M - self.N:
+                        n_missing = i - self.M + self.N
+                        safety_chunk = np.concatenate([
+                            plan[i:i + self.N], np.repeat(plan[-1:], n_missing, axis=0)
+                        ])
+                    else:
+                        safety_chunk = plan[i:i + self.N]
+                    casc_plan[i * self.N:(i + 1) * self.N] = safety_chunk
+                poss_ -= casc_plan
+            else:
+                poss_ -= np.array([plan[:self.N], plan[self.N:]]).T
         if self.last_traj is not None:
             last_traj = self.last_traj[1:]
             traj_hor = len(last_traj)

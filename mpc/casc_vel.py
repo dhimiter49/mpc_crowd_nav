@@ -42,6 +42,7 @@ class MPCCascVel(MPCVel):
         self.plan_horizon = self.M
         self.plan_type = plan_type
         self.stability_coeff = stability_coeff
+        self.last_planned_traj = np.zeros((self.M + self.N - 1, 2))
 
         mat_pos_vel = self.mat_pos_vel[:self.N, :self.N - 1]
         self.casc_mat_pos_vel = np.zeros((self.M * self.N, self.M * (self.N - 1)))
