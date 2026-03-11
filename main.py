@@ -243,7 +243,7 @@ while count < steps:
         motion_data = np.load(read_plan)
         pos_plan = motion_data[
             count * mult_plan:(count + 1) * mult_plan,
-            6 + n_crowd * 4:6 + n_crowd * 4 + N * 2
+            6 + n_crowd * 4:6 + n_crowd * 4 + plan_steps * 2
         ]
         trajectory_data = motion_data[count * mult_plan]
         agent_pos = trajectory_data[:2]
