@@ -285,6 +285,7 @@ while count < steps:
     # Compute controller next action and if a braking trajectory is executed
     for i, p in enumerate(plan):
         obs = plan_obs if read_plan is not None else obs
+        controller[0].reset() if gen_motion else None
         braking_flags = np.array([False] * n_agents)
         if mpc_type != "simple" or "-rrt" in sys.argv:
             env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(p, plan_steps))

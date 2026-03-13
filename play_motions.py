@@ -135,7 +135,7 @@ for i in range(0, len(motion_data), mult_plan):
 
     a_time = p_time if np.all(actions == 0) else a_time
 
-    print("Difference between action time and plan time: " + str(a_time - p_time) + "s")
+    # print("Difference between action time and plan time: " + str(a_time - p_time) + "s")
     plan_to_motion_time_distance.append(a_time - p_time)
     if not np.all(actions == 0):
         motion_time.append(a_time)
@@ -145,7 +145,7 @@ for i in range(0, len(motion_data), mult_plan):
     env.reset()
 print(plan_to_motion_time_distance)
 print(np.mean(plan_to_motion_time_distance))
-print(np.std(plan_to_motion_time_distance))
+# print(np.std(plan_to_motion_time_distance))
 print(motion_time)
 print(
     "Solution found for: ", len(motion_time),
