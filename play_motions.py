@@ -47,7 +47,12 @@ else:
     env_str = "Navigation%s-v0" % velocity_str
 
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
+render = "-r" in sys.argv
 plot_all_plans = "-ap" in sys.argv
+calculate_best_time = "-bt" in sys.argv
+best_time_out_of = mult_plan
+if calculate_best_time:
+    mult_plan = 1
 env = gym.make("fancy/" + env_str)
 DT = env.unwrapped.dt
 # env = gym.wrappers.RecordVideo(
@@ -61,6 +66,7 @@ n_crowd = env.unwrapped.n_crowd
 # env.start_video_recorder()
 plan_to_motion_time_distance = []
 motion_time = []
+motion_best_time = [[] for _ in range(len(motion_data) // best_time_out_of)]
 
 print("There are " + str(len(motion_data) // mult_plan) + " episodes.")
 for i in range(0, len(motion_data), mult_plan):
@@ -122,7 +128,7 @@ for i in range(0, len(motion_data), mult_plan):
     a_time = 0
     for a in actions:
         a_time += 0.1
-        env.render()
+        env.render() if render else None
         obs, reward, terminated, truncated, info = env.step(a)
         if terminated or truncated:
             break
@@ -131,14 +137,22 @@ for i in range(0, len(motion_data), mult_plan):
 
     print("Difference between action time and plan time: " + str(a_time - p_time) + "s")
     plan_to_motion_time_distance.append(a_time - p_time)
-    motion_time.append(a_time)
-    env.render()
+    if not np.all(actions == 0):
+        motion_time.append(a_time)
+        if calculate_best_time:
+            motion_best_time[i // best_time_out_of].append(a_time)
+    env.render() if render else None
     env.reset()
 print(plan_to_motion_time_distance)
 print(np.mean(plan_to_motion_time_distance))
 print(np.std(plan_to_motion_time_distance))
 print(motion_time)
+print(
+    "Solution found for: ", len(motion_time),
+    " out of ", len(motion_data) // mult_plan, " episodes")
 print(np.mean(motion_time))
+if calculate_best_time:
+    print(np.mean([np.min(ls) for ls in motion_best_time if len(ls) > 0]))
 
 # env.close_video_recorder()
 # env.close()
