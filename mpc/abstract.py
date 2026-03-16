@@ -162,6 +162,14 @@ class AbstractMPC:
         vel_plan[:self.plan_horizon] -= vel[0]
         vel_plan[self.plan_horizon:] -= vel[1]
 
+        # Initial RRT solution in case of SQP
+        if "SQP" in type(self).__name__ and self.last_sqp_solution is None:
+            idxs = np.concatenate([
+                np.arange(self.N_control),
+                np.arange(self.N, self.N + self.N_control)
+            ])
+            self.last_sqp_solution = pos_plan[idxs]
+
         # Constraints
         const_M, const_b = [], []
         if crowd_poss is not None:

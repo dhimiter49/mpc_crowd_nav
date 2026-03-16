@@ -46,7 +46,7 @@ class MPC_SQP_Vel(MPCVel):
         self.all_tries = []  # keep track of how many tries
         self.lin_crowd_const = lin_crowd_const
         self.sqp_loops = 30
-        self.last_sqp_solution = np.zeros(2 * self.N_control, dtype=np.float64)
+        self.last_sqp_solution = None
         mat_pos_vel_quad = self.mat_pos_vel.T @ self.mat_pos_vel
         mat_pos_vel_quad = mat_pos_vel_quad.astype(np.float64)
         self.mat_Q = scipy.sparse.csc_matrix(mat_pos_vel_quad)
@@ -246,4 +246,4 @@ class MPC_SQP_Vel(MPCVel):
 
     def reset(self):
         super().reset()
-        self.last_sqp_solution = np.zeros(2 * self.N_control, dtype=np.float64)
+        self.last_sqp_solution = None
