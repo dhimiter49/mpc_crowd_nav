@@ -143,10 +143,10 @@ for i in range(0, len(motion_data), mult_plan):
             motion_best_time[i // best_time_out_of].append(a_time)
     env.render() if render else None
     env.reset()
-print(plan_to_motion_time_distance)
+# print(plan_to_motion_time_distance)
 print(np.mean(plan_to_motion_time_distance))
 # print(np.std(plan_to_motion_time_distance))
-print(motion_time)
+# print(motion_time)
 print(
     "Solution found for: ", len(motion_time),
     " out of ", len(motion_data) // mult_plan, " episodes")
