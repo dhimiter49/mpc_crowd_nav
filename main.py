@@ -398,20 +398,18 @@ while count < steps:
 
 # Save data if generating data
 if gen_data:
+    assert dataset is not None
     np.save("dataset_" + env_str + ".npy", dataset)
 
 plan_str = "rrt" if "-rrt" in sys.argv else ""
 if gen_motion:
-    np.save(
-        str(Path.home()) + "/Documents/RAM/results/" +
-        "motions_" + env_str + "_" +
-        mpc_type + "_" +
-        str(N) + "_" + str(R) + "_" +
-        "ps-" + str(mpc_kwargs.get("passive_safety", True)) + "_" +
-        "mp-" + str(mult_plan) + "_" +
-        plan_str +
-        ".npy", motions
-    )
+    assert motions is not None
+    exp_name = "_" + exp_name if exp_name != "" else exp_name
+    file_name = str(Path.home()) + "/Documents/RAM/results/" + "motions_" +\
+        env_str + "_" + mpc_type + "_" + str(N) + "_" + str(R) + "_" + "ps-" +\
+        str(mpc_kwargs.get("passive_safety", True)) + "_" + "mp-" + str(mult_plan) +\
+        "_" + plan_str + exp_name + ".npy"
+    np.save(file_name, motions)
 
 # Print and save results
 # print("Diffs: ", result.stdout)
