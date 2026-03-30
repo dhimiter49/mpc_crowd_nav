@@ -159,16 +159,21 @@ class AbstractMPC:
                 )
                 self.CONST_DIST_CROWD += self.AGENT_MAX_VEL * self.DT *\
                     np.arange(1, self.N_crowd + 1)
-        vel_plan[:self.plan_horizon] -= vel[0]
-        vel_plan[self.plan_horizon:] -= vel[1]
+        # vel_plan[:self.plan_horizon] -= vel[0]
+        # vel_plan[self.plan_horizon:] -= vel[1]
 
         # Initial RRT solution in case of SQP
         if "SQP" in type(self).__name__ and self.last_sqp_solution is None:
+            if np.all(vel_plan == 0):
+                pos_plan_xy = pos_plan.reshape(-1, 2, order='F')
+                dist = pos_plan_xy[1:] - pos_plan_xy[:-1]
+                vel_plan = np.concatenate([dist / self.DT, np.zeros((1, 2))])
+                vel_plan = vel_plan.flatten('F')
             idxs = np.concatenate([
                 np.arange(self.N_control),
                 np.arange(self.N, self.N + self.N_control)
             ])
-            self.last_sqp_solution = pos_plan[idxs]
+            self.last_sqp_solution = vel_plan[idxs]
 
         # Constraints
         const_M, const_b = [], []
