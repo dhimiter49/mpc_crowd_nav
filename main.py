@@ -333,11 +333,11 @@ while count < steps:
         reward = 0
         for a in actions:
             motion_actions[i].append(a) if gen_motion else None
-            if not gen_motion:
-                env.render() if render else None
-                obs, reward, terminated, truncated, info = env.step(a)
-                if terminated or truncated:
-                    break
+            # if not gen_motion:
+            env.render() if render else None
+            obs, reward, terminated, truncated, info = env.step(a)
+            if terminated or truncated:
+                break
         if read_plan is not None:
             env.reset()
             env.hard_set_vars(
@@ -365,7 +365,7 @@ while count < steps:
         ])
     ep_return += reward
     ep_step_count += 1
-    if terminated or truncated or gen_motion:
+    if terminated or truncated:
         # print("braking flags: ", braking_flags)
         # print("braking steps: ", braking_steps)
         braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
@@ -386,7 +386,7 @@ while count < steps:
                     np.zeros((env.unwrapped.MAX_EPISODE_STEPS - len(motion_act), 2))
                 ]).flatten()
                 motions[ep_count * mult_plan + i] = np.concatenate([
-                    init_obs, p[0].flatten(), motion_act
+                    init_obs, np.zeros(env.unwrapped.MAX_EPISODE_STEPS * 2), motion_act
                 ]).flatten()
             init_obs = None
             motion_actions = [[] for _ in range(mult_plan)]
