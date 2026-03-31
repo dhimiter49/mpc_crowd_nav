@@ -8,10 +8,11 @@ class ObsHandler:
         crowd radiuses
     In case that the information is missing for the environment then return None
     """
-    def __init__(self, env_type: str, n_crowd: int = 0):
+    def __init__(self, env_type: str, n_crowd: int = 0, obs_noise: bool = False):
         self.env_type = env_type
         self.n_inter_crowd = (n_crowd - 1) * 2
         self.n_crowd = n_crowd * 2  # two dimensions x and y
+        self.obs_noise = obs_noise
 
 
     def get_obs(self, obs):
@@ -34,14 +35,37 @@ class ObsHandler:
         elif self.env_type == "CrowdNavigation" or\
             self.env_type == "CrowdNavigationConst":
             # goal, crowd, agent velocity, crowd velocities, walls, radii
-            return (
-                obs[: 2],
-                obs[2:2 + self.n_crowd],
-                obs[2 + self.n_crowd:self.n_crowd + 4],
-                obs[self.n_crowd + 4:2 * self.n_crowd + 4],
-                obs[2 * self.n_crowd + 4:],
-                None
-            )
+            if not self.obs_noise:
+                return (
+                    obs[: 2],
+                    obs[2:2 + self.n_crowd],
+                    obs[2 + self.n_crowd:self.n_crowd + 4],
+                    obs[self.n_crowd + 4:2 * self.n_crowd + 4],
+                    obs[2 * self.n_crowd + 4:],
+                    None
+                )
+            else:
+                goal = obs[:2]
+                crowd_poss = obs[2:2 + self.n_crowd]
+                vel = obs[2 + self.n_crowd:self.n_crowd + 4]
+                crowd_vels = obs[self.n_crowd + 4:2 * self.n_crowd + 4]
+                walls = obs[2 * self.n_crowd + 4:]
+                crowd_poss = crowd_poss.reshape(-1, 2)
+                crowd_vels = crowd_vels.reshape(-1, 2)
+                return (
+                    goal + np.random.normal(0, np.linalg.norm(goal) * 0.01, size=2),
+                    crowd_poss + np.random.normal(
+                        0, np.linalg.norm(crowd_poss, axis=-1) * 0.01,
+                        size=(2, self.n_crowd // 2)
+                    ).T,
+                    vel + np.random.normal(0, np.linalg.norm(vel) * 0.01, size=2),
+                    crowd_vels + np.random.normal(
+                        0, np.linalg.norm(crowd_vels, axis=-1) * 0.01,
+                        size=(2, self.n_crowd // 2)
+                    ).T,
+                    walls + np.random.normal(0, walls * 0.01, size=4),
+                    None
+                )
         elif self.env_type == "CrowdNavigationInter":
             list_of_obs = list(np.array(obs).reshape(self.n_crowd // 2, -1))
             new_list_of_obs = []
