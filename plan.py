@@ -111,7 +111,7 @@ class RRT_Plan(Plan):
                 goal=tuple(goal),
                 obstacles=obstacles,
                 rectangles=rectangles,
-                t_range=(0, self.full_N * self.DT),
+                t_range=(0, (self.full_N - self.step) * self.DT),
                 robot_radius=0.45,
                 v_max=self.MAX_VEL,
                 dt=0.1,
