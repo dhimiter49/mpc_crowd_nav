@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 from fast_3Drrt import Obstacle, RRTSpatioTemporal
 
@@ -67,8 +68,15 @@ class Plan:
 
 
 class RRT_Plan(Plan):
-    def __init__(self, horizon: int, dt: float, max_vel: float):
+    def __init__(
+        self,
+        horizon: int,
+        dt: float,
+        max_vel: float,
+        full_N: Union[int, None] = None
+    ):
         super().__init__(horizon, dt, max_vel)
+        self.full_N = full_N if full_N is not None else self.N
         self.path = None
         self.step = 0
         self.n_tries = 30
@@ -85,7 +93,7 @@ class RRT_Plan(Plan):
             for pos, vel, radius in zip(crowd_poss, crowd_vels, radii):
                 obstacles.append(Obstacle(
                     pos[0], pos[1],
-                    0, self.N * self.DT,
+                    0, self.full_N * self.DT,
                     vel[0], vel[1],
                     radius + 0.05
                 ))
@@ -94,7 +102,7 @@ class RRT_Plan(Plan):
                 (-left, 0, 0, 0.01, 100),
                 (right, 0, 0, 0.01, 100),
                 (0, -down, 0, 100, 0.01),
-                (0, up, 0, 100, 0.1),
+                (0, up, 0, 100, 0.01),
             ]
 
             self.ref_pos = current_pos
@@ -103,7 +111,7 @@ class RRT_Plan(Plan):
                 goal=tuple(goal),
                 obstacles=obstacles,
                 rectangles=rectangles,
-                t_range=(0, self.N * self.DT),
+                t_range=(0, self.full_N * self.DT),
                 robot_radius=0.45,
                 v_max=self.MAX_VEL,
                 dt=0.1,
@@ -126,32 +134,39 @@ class RRT_Plan(Plan):
                 interpol_x = np.interp(sample_time, path[:, 2], path[:, 0])[1:]
                 interpol_y = np.interp(sample_time, path[:, 2], path[:, 1])[1:]
                 traj_len = len(interpol_x)
-                if traj_len < self.N:
+                if traj_len < self.full_N:
                     interpol_x = np.concatenate([
-                        interpol_x, np.repeat(interpol_x[-1], self.N - traj_len)
+                        interpol_x, np.repeat(interpol_x[-1], self.full_N - traj_len)
                     ])
                     interpol_y = np.concatenate([
-                        interpol_y, np.repeat(interpol_y[-1], self.N - traj_len)
+                        interpol_y, np.repeat(interpol_y[-1], self.full_N - traj_len)
                     ])
-                self.path = np.concatenate([interpol_x[:self.N], interpol_y[:self.N]])
+                self.path = np.concatenate([
+                    interpol_x[:self.full_N], interpol_y[:self.full_N]
+                ])
                 path = self.path.copy()
             else:
                 print("Path not found from RRT!")
-                self.time_path = np.zeros((self.N, 3))
-                self.time_path[:, 2] = np.arange(0., self.N * self.DT, self.DT)
-                path = np.zeros(self.N * 2)  # dont move
+                self.time_path = np.zeros((self.full_N, 3))
+                self.time_path[:, 2] = np.arange(0., self.full_N * self.DT, self.DT)
+                path = np.zeros(self.full_N * 2)  # dont move
                 self.path = path
         else:
-            path = np.array([self.path[:self.N], self.path[self.N:]]).T + self.ref_pos
+            path = np.array([
+                self.path[:self.full_N], self.path[self.full_N:]
+            ]).T + self.ref_pos
             # closest_index = np.argmin(np.linalg.norm(path - current_pos, axis=-1))
             # path = path[closest_index:]
             path = path[self.step:]
             traj_len = len(path)
-            if traj_len < self.N:
-                path = np.concatenate([path, np.stack([path[-1]] * (self.N - traj_len))])
+            if traj_len < self.full_N:
+                path = np.concatenate([
+                    path, np.stack([path[-1]] * (self.full_N - traj_len))
+                ])
             path -= current_pos
             path = path.flatten('F')
         self.step += 1
+        path = np.concatenate([path[:self.N], path[self.full_N:self.full_N + self.N]])
         return path, path * 0
 
 

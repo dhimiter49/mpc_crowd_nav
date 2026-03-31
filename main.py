@@ -153,7 +153,7 @@ if "-ns" in sys.argv:
 n_agents = n_crowd if "-mci" in sys.argv else 1
 if "-rrt" in sys.argv:
     planner = RRT_Plan(
-        plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"),
+        plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"), max_ep_steps
     )
 else:
     planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
