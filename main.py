@@ -1,3 +1,4 @@
+import os
 import sys
 import csv
 from pathlib import Path
@@ -19,6 +20,8 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
+RESULTS_DIR = "/Documents/RAM/results"
+RESULTS_DIR = "/results/" if not os.path.exists(RESULTS_DIR) else RESULTS_DIR
 MPC_DICT = {
     "-d": "simple",  # simple plan just minimizes all future distances to the goal
     "-lp": "linear_plan",  # straight line to goal with sampling distance based on max vel
@@ -405,8 +408,8 @@ plan_str = "rrt" if "-rrt" in sys.argv else ""
 if gen_motion:
     assert motions is not None
     exp_name = "_" + exp_name if "-n" in sys.argv else exp_name
-    file_name = str(Path.home()) + "/Documents/RAM/results/" + "motions_" +\
-        env_str + "_" + mpc_type + "_" + str(N) + "_" + str(R) + "_" + "ps-" +\
+    file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str + "_" + mpc_type +
+        "_" + str(N) + "_" + str(R) + "_" + "ps-" +\
         str(mpc_kwargs.get("passive_safety", True)) + "_" + "mp-" + str(mult_plan) +\
         "_" + plan_str + exp_name + ".npy"
     np.save(file_name, motions)
@@ -429,7 +432,7 @@ print("Stats:")
     success_rate
 ) = env.stats()
 exp_name = exp_name + ".csv"
-path = Path.home() / "Documents" / "RAM" / "results" / exp_name
+path = Path.home() / Path(RESULTS_DIR) / exp_name
 has_header = False
 if path.is_file():
     with open(path, 'r', newline='') as csvfile:
