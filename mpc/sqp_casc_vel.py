@@ -24,7 +24,7 @@ class MPC_SQP_CascVel(MPCCascVel):
         radius_crowd: Union[list[float], None] = None,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
-        lin_crowd_const: bool = False,
+        lin_crowd_const: bool = True,
         **_
     ):
         super().__init__(
@@ -114,7 +114,7 @@ class MPC_SQP_CascVel(MPCCascVel):
         const_M = kwargs["const_M"]
         const_b = kwargs["const_b"]
         crowd_poss = kwargs["crowd_poss"]
-        agent_vel = kwargs["agent_vel"]
+        vel = kwargs["agent_vel"]
         crowd_vels = kwargs["crowd_vels"]
         plan = kwargs["plan"]
         for i, member in enumerate(range(crowd_poss.shape[1])):
@@ -133,7 +133,7 @@ class MPC_SQP_CascVel(MPCCascVel):
 
             # ignore if two far and different direction
             poss, vec, ignore = self.ignore_crowd_member(
-                crowd_poss, member, agent_vel, plan
+                crowd_poss, member, vel, plan
             )
             if ignore:
                 continue
