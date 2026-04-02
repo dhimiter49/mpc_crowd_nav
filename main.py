@@ -408,7 +408,7 @@ plan_str = "rrt" if "-rrt" in sys.argv else ""
 if gen_motion:
     assert motions is not None
     exp_name = "_" + exp_name if "-n" in sys.argv else exp_name
-    file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str + "_" + mpc_type +
+    file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str + "_" + mpc_type +\
         "_" + str(N) + "_" + str(R) + "_" + "ps-" +\
         str(mpc_kwargs.get("passive_safety", True)) + "_" + "mp-" + str(mult_plan) +\
         "_" + plan_str + exp_name + ".npy"
