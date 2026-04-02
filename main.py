@@ -19,9 +19,10 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-
-RESULTS_DIR = "/Documents/RAM/results"
-RESULTS_DIR = "/results/" if not os.path.exists(RESULTS_DIR) else RESULTS_DIR
+if os.path.exists(str(Path.home()) + "/Documents/RAM/results/"):
+    RESULTS_DIR = "/Documents/RAM/results/"
+else:
+    RESULTS_DIR = "/results/"
 MPC_DICT = {
     "-d": "simple",  # simple plan just minimizes all future distances to the goal
     "-lp": "linear_plan",  # straight line to goal with sampling distance based on max vel
