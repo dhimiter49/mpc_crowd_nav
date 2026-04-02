@@ -114,7 +114,7 @@ class MPC_SQP_CascVel(MPCCascVel):
         const_M = kwargs["const_M"]
         const_b = kwargs["const_b"]
         crowd_poss = kwargs["crowd_poss"]
-        vel = kwargs["agent_vel"]
+        agent_vel = kwargs["agent_vel"]
         crowd_vels = kwargs["crowd_vels"]
         plan = kwargs["plan"]
         for i, member in enumerate(range(crowd_poss.shape[1])):
