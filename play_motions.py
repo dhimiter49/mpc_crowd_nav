@@ -66,6 +66,7 @@ n_crowd = env.unwrapped.n_crowd
 # env.start_video_recorder()
 plan_to_motion_time_distance = []
 motion_time = []
+motions_found = []
 motion_best_time = [[] for _ in range(len(motion_data) // best_time_out_of)]
 
 print("There are " + str(len(motion_data) // mult_plan) + " episodes.")
@@ -110,6 +111,7 @@ for i in range(0, len(motion_data), mult_plan):
     positions = np.array(positions)[valid_idx]
     all_valid_actions = np.array(all_actions)[valid_idx]
     all_valid_plans = np.array(all_plans)[valid_idx]
+    # n_motions_found.append(len(all_valid_plans))
     sorted_dist = np.argsort(dist)
     env.get_wrapper_attr("set_all_motions")(
         np.array(positions)[np.flip(np.argsort(dist))]
@@ -147,6 +149,8 @@ for i in range(0, len(motion_data), mult_plan):
 print(np.mean(plan_to_motion_time_distance))
 # print(np.std(plan_to_motion_time_distance))
 # print(motion_time)
+# print(motion_best_time)
+# print(n_motions_found)
 print(
     "Solution found for: ", len(motion_time),
     " out of ", len(motion_data) // mult_plan, " episodes")
