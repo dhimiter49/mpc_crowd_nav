@@ -434,7 +434,7 @@ print("Stats:")
     success_rate
 ) = env.stats()
 exp_name = exp_name + ".csv"
-path = Path.home() / Path(RESULTS_DIR) / exp_name
+path = Path.home() / Path(RESULTS_DIR[1:]) / exp_name  # remove inital / in results_dir
 has_header = False
 if path.is_file():
     with open(path, 'r', newline='') as csvfile:
