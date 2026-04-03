@@ -162,6 +162,14 @@ if "-rrt" in sys.argv:
 else:
     planner = Plan(plan_steps, DT, env.get_wrapper_attr("AGENT_MAX_VEL"))
 
+motions_exp_name = "_" + exp_name if "-n" in sys.argv else exp_name
+plan_str = "rrt" if "-rrt" in sys.argv else ""
+motions_file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str +\
+    "_" + mpc_type + "_" + str(N) + "_" + str(R) + "_" + "ps-" +\
+    str(mpc_kwargs.get("passive_safety", True)) + "_" + "mp-" +\
+    str(mult_plan) + "_" + plan_str + motions_exp_name + ".npy"
+
+
 augment_radius = float(sys.argv[sys.argv.index("-ar") + 1]) if "-ar" in sys.argv else 1.
 
 controller = [
@@ -392,6 +400,8 @@ while count < steps:
                 motions[ep_count * mult_plan + i] = np.concatenate([
                     init_obs, p[0].flatten(), motion_act
                 ]).flatten()
+            assert motions is not None
+            np.save(motions_file_name, motions)
             init_obs = None
             motion_actions = [[] for _ in range(mult_plan)]
         ep_count += 1
@@ -405,15 +415,6 @@ if gen_data:
     assert dataset is not None
     np.save("dataset_" + env_str + ".npy", dataset)
 
-plan_str = "rrt" if "-rrt" in sys.argv else ""
-if gen_motion:
-    assert motions is not None
-    exp_name = "_" + exp_name if "-n" in sys.argv else exp_name
-    file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str + "_" + mpc_type +\
-        "_" + str(N) + "_" + str(R) + "_" + "ps-" +\
-        str(mpc_kwargs.get("passive_safety", True)) + "_" + "mp-" + str(mult_plan) +\
-        "_" + plan_str + exp_name + ".npy"
-    np.save(file_name, motions)
 
 # Print and save results
 # print("Diffs: ", result.stdout)
