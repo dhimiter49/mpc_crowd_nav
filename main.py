@@ -337,7 +337,7 @@ while count < steps:
             control_plan, braking_flag = controller[0].get_action(p, obs)
             # traj = controller[0].traj_from_plan(obs[2])
             # env.set_trajectory(traj)
-            actions = control_plan[:R]  # only one agent so only one action
+            actions = control_plan[:R]
             braking_flags[0] = braking_flag
             tot_braking_steps += 1 if braking_flag and not old_braking_flags else 0
 
