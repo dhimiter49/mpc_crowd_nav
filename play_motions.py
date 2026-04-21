@@ -68,6 +68,7 @@ plan_to_motion_time_distance = []
 motion_time = []
 motions_found = []
 motion_best_time = [[] for _ in range(len(motion_data) // best_time_out_of)]
+n_rrt_paths = 0
 
 print("There are " + str(len(motion_data) // mult_plan) + " episodes.")
 for i in range(0, len(motion_data), mult_plan):
@@ -96,6 +97,8 @@ for i in range(0, len(motion_data), mult_plan):
         .reshape(-1, 2, order='F')
         for j in range(mult_plan)
     ]
+    for p in all_plans:
+        n_rrt_paths += 0 if np.all(p == 0) else 1
     positions = [
         np.concatenate([np.array([[0, 0]]), np.cumsum(a * DT, axis=0)])
         for a in all_actions
@@ -151,6 +154,7 @@ print(np.mean(plan_to_motion_time_distance))
 # print(motion_time)
 # print(motion_best_time)
 # print(n_motions_found)
+# print("Number of valid plans", n_rrt_paths)
 print(
     "Solution found for: ", len(motion_time),
     " out of ", len(motion_data) // mult_plan, " episodes")
