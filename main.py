@@ -57,6 +57,9 @@ PLAN_DICT = {
 gen_data = "-gd" in sys.argv  # option to generate data from MPC
 gen_motion = "-gm" in sys.argv  # option to generate moition, need only init observation
 read_plan = sys.argv[sys.argv.index("-rm") + 1] if "-rm" in sys.argv else None
+motion_data = np.load(read_plan) if read_plan is not None else None
+read_traj_plan = sys.argv[sys.argv.index("-rt") + 1] if "-rt" in sys.argv else None
+traj_data = np.load(read_traj_plan) if read_traj_plan is not None else None
 velocity_str = "Vel" if "-v" or "-sqp" in sys.argv else ""
 env_str = ""
 crowd_shift_idx = 0
@@ -172,24 +175,25 @@ motions_file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str +\
 
 augment_radius = float(sys.argv[sys.argv.index("-ar") + 1]) if "-ar" in sys.argv else 1.
 
-controller = [
-    get_mpc(
-        mpc_type,
-        horizon=N,
-        dt=DT,
-        physical_space=env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:][i],
-        # add 0.01 in order to account for continuous collision avoidance
-        const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE")[0] * 2 + 0.01001,
-        radius_crowd=np.delete(
-            env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:], i
-        ) * augment_radius,
-        agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
-        agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
-        crowd_max_vel=env.get_wrapper_attr("CROWD_MAX_VEL"),
-        crowd_max_acc=env.get_wrapper_attr("MAX_ACC"),
-        **mpc_kwargs
-    ) for i in range(n_agents)
-] if "-cc" not in sys.argv else [ConstController(dt=DT, planner=planner)]
+if read_traj_plan is not None:
+    controller = [
+        get_mpc(
+            mpc_type,
+            horizon=N,
+            dt=DT,
+            physical_space=env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:][i],
+            # add 0.01 in order to account for continuous collision avoidance
+            const_dist_crowd=env.get_wrapper_attr("PHYSICAL_SPACE")[0] * 2 + 0.01001,
+            radius_crowd=np.delete(
+                env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:], i
+            ) * augment_radius,
+            agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
+            agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
+            crowd_max_vel=env.get_wrapper_attr("CROWD_MAX_VEL"),
+            crowd_max_acc=env.get_wrapper_attr("MAX_ACC"),
+            **mpc_kwargs
+        ) for i in range(n_agents)
+    ] if "-cc" not in sys.argv else [ConstController(dt=DT, planner=planner)]
 
 
 def mpc_get_action(mpc, plan, obs, q):
@@ -251,12 +255,40 @@ while count < steps:
             for _ in range(mult_plan):
                 plan.append(planner.plan(obs, controller[0].current_pos))
                 planner.reset()
-    else:
-        motion_data = np.load(read_plan)
-        pos_plan = motion_data[
-            count * mult_plan:(count + 1) * mult_plan,
-            6 + n_crowd * 4:6 + n_crowd * 4 + plan_steps * 2
-        ]
+    elif read_plan:
+        assert motion_data is not None
+        if read_traj_plan is None:
+            pos_plan = motion_data[
+                count * mult_plan:(count + 1) * mult_plan,
+                6 + n_crowd * 4:6 + n_crowd * 4 + plan_steps * 2
+            ]
+        else:
+            assert traj_data is not None
+            controller = None
+            pos_plan = traj_data['traj' + str(count)]
+            N = len(pos_plan)
+            controller = [
+                get_mpc(
+                    mpc_type,
+                    horizon=N,
+                    dt=DT,
+                    physical_space=env.get_wrapper_attr(
+                        "PHYSICAL_SPACE"
+                    )[crowd_shift_idx:][i],
+                    # add 0.01 in order to account for continuous collision avoidance
+                    const_dist_crowd=env.get_wrapper_attr(
+                        "PHYSICAL_SPACE"
+                    )[0] * 2 + 0.01001,
+                    radius_crowd=np.delete(
+                        env.get_wrapper_attr("PHYSICAL_SPACE")[crowd_shift_idx:], i
+                    ) * augment_radius,
+                    agent_max_vel=env.get_wrapper_attr("AGENT_MAX_VEL"),
+                    agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
+                    crowd_max_vel=env.get_wrapper_attr("CROWD_MAX_VEL"),
+                    crowd_max_acc=env.get_wrapper_attr("MAX_ACC"),
+                    **mpc_kwargs
+                ) for i in range(n_agents)
+            ] if "-cc" not in sys.argv else [ConstController(dt=DT, planner=planner)]
         trajectory_data = motion_data[count * mult_plan]
         agent_pos = trajectory_data[:2]
         crowd_poss = trajectory_data[2:2 + n_crowd * 2]
@@ -289,7 +321,7 @@ while count < steps:
                 "_goal_pos": goal_pos
             }
         )
-        plan = list(zip(pos_plan, pos_plan * 0))
+        plan = list(zip(pos_plan, pos_plan * 0))  # add empty velocity plan
 
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
