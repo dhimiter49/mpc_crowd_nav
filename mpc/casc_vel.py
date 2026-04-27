@@ -23,6 +23,7 @@ class MPCCascVel(MPCVel):
         stability_coeff: float = 0.2,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
+        use_plan: bool = False,
     ):
         super().__init__(
             horizon,
@@ -37,6 +38,7 @@ class MPCCascVel(MPCVel):
             radius_crowd=radius_crowd,
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
+            use_plan=use_plan,
         )
         self.M = plan_length
         self.plan_horizon = self.M

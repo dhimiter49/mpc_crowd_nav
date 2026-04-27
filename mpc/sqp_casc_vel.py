@@ -25,6 +25,7 @@ class MPC_SQP_CascVel(MPCCascVel):
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         lin_crowd_const: bool = True,
+        use_plan: bool = False,
         **_
     ):
         super().__init__(
@@ -41,6 +42,7 @@ class MPC_SQP_CascVel(MPCCascVel):
             radius_crowd=radius_crowd,
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
+            use_plan=use_plan,
         )
         self.lin_crowd_const = lin_crowd_const
         self.sqp_loops = 30

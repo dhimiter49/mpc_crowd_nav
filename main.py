@@ -192,6 +192,7 @@ if read_traj_plan is None:
             agent_max_acc=env.get_wrapper_attr("MAX_ACC"),
             crowd_max_vel=env.get_wrapper_attr("CROWD_MAX_VEL"),
             crowd_max_acc=env.get_wrapper_attr("MAX_ACC"),
+            use_plan="-rrt" in sys.argv,
             **mpc_kwargs
         ) for i in range(n_agents)
     ] if "-cc" not in sys.argv else [ConstController(dt=DT, planner=planner)]

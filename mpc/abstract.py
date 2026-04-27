@@ -28,6 +28,7 @@ class AbstractMPC:
         horizon_tries: int = 0,
         horizon_crowd_pred: Union[int, None] = None,
         relax_uncertainty: float = 1.,
+        use_plan: bool = False,
     ):
         """
         Args:
@@ -45,10 +46,12 @@ class AbstractMPC:
                 not the objective or the other constraints
             relax_uncertainty: if uncertainty is "rdist" than choose the factor for which
                 to relax it, 0 no relaxation and 1 is no ucertainty
+            use_plan: use plan and not last MPC plan
         """
         # vars
         self.N = horizon
         self.M = horizon
+        self.use_plan = use_plan
         self.plan_horizon = self.N
         self.horizon_tries = horizon_tries
         self.short_hor_only_crowd = False
@@ -456,7 +459,7 @@ class AbstractMPC:
         zero_idx = np.where(np.linalg.norm(poss, axis=-1) == 0)[0]
         poss[zero_idx] += 1e-8
         poss_ = poss.copy()
-        if self.last_traj is None:
+        if self.last_traj is None or self.use_plan:
             if "Casc" in type(self).__name__:
                 plan = np.array([plan[:self.M], plan[self.M:]]).T
                 casc_plan = np.zeros((self.M * self.N, 2))
@@ -472,7 +475,7 @@ class AbstractMPC:
                 poss_ -= casc_plan
             else:
                 poss_ -= np.array([plan[:self.N], plan[self.N:]]).T
-        if self.last_traj is not None:
+        if self.last_traj is not None and not self.use_plan:
             last_traj = self.last_traj[1:]
             traj_hor = len(last_traj)
             if "Casc" not in type(self).__name__ and traj_hor < self.N:

@@ -21,6 +21,7 @@ class MPCCascAcc(MPCAcc):
         stability_coeff: float = 0.075,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
+        use_plan: bool = False,
     ):
         super().__init__(
             horizon,
@@ -34,6 +35,7 @@ class MPCCascAcc(MPCAcc):
             uncertainty,
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
+            use_plan=use_plan,
         )
         self.M = plan_length
         self.plan_horizon = self.M

@@ -26,6 +26,7 @@ class MPC_SQP_Vel(MPCVel):
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,
         lin_crowd_const: bool = True,
+        use_plan: bool = False,
         **_
     ):
         super().__init__(
@@ -42,6 +43,7 @@ class MPC_SQP_Vel(MPCVel):
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
             passive_safety=passive_safety,
+            use_plan=use_plan,
         )
         self.all_tries = []  # keep track of how many tries
         self.lin_crowd_const = lin_crowd_const

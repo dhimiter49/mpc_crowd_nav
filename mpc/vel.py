@@ -26,6 +26,7 @@ class MPCVel(AbstractMPC):
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,
+        use_plan: bool = False,
     ):
         super().__init__(
             horizon,
@@ -40,6 +41,7 @@ class MPCVel(AbstractMPC):
             radius_crowd,
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
+            use_plan=use_plan,
         )
         self.stability_coeff = stability_coeff
         self.avoid_crowd_coeff = 0.01
