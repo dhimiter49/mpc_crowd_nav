@@ -175,7 +175,8 @@ motions_file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str +\
 
 augment_radius = float(sys.argv[sys.argv.index("-ar") + 1]) if "-ar" in sys.argv else 1.
 
-if read_traj_plan is not None:
+controller = []
+if read_traj_plan is None:
     controller = [
         get_mpc(
             mpc_type,
