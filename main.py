@@ -229,6 +229,7 @@ progress_bar = tqdm(total=steps, desc="Processing")
 
 reward, terminated, truncated = None, None, None
 init_obs = None
+init_agent_pos = None
 ep_plan = None
 motion_actions = [[] for _ in range(mult_plan)]
 
@@ -259,13 +260,14 @@ while count < steps:
                 plan.append(planner.plan(obs, controller[0].current_pos))
                 planner.reset()
         if ep_plan is None:
-            ep_plan = [p[0].reshape(-1, 2, order='F')[:R] for p in plan]
+            ep_plan = [p[0].reshape((-1, 2), order='F')[:R] for p in plan]
+            init_agent_pos = env.get_wrapper_attr("_agent_pos")
         else:
             new_ep_plan = []
             for p, p_ in zip(ep_plan, plan):
-                new_ep_plan.append(np.concatenate([
-                    p, controller[0].current_pos + p_[0].reshape(-1, 2, order='F')[:R]
-                ]))
+                new_plan = p_[0].reshape((-1, 2), order='F')[:R]
+                rel_agent_pos = env.get_wrapper_attr("_agent_pos") - init_agent_pos
+                new_ep_plan.append(np.concatenate([p, rel_agent_pos + new_plan]))
             ep_plan = new_ep_plan
     elif read_plan:
         assert motion_data is not None
@@ -436,17 +438,20 @@ while count < steps:
         returns.append(ep_return)
         ep_return = 0
         if gen_motion:
+            assert motions is not None
             for i, (p, motion_act) in enumerate(zip(ep_plan, motion_actions)):
                 motion_act = np.array(motion_act)
                 motion_act = np.concatenate([
                     motion_act, np.zeros((max_ep_steps - len(motion_act), 2))
                 ]).flatten()
+                p_w_fixed = p.copy()
                 if len(p) < max_ep_steps:
-                    p_w_fixed = np.concatenate([p, np.zeros((max_ep_steps - len(p), 2))])
+                    p_w_fixed = np.concatenate([
+                        p, np.repeat(p[-1].reshape(1, 2), max_ep_steps - len(p), axis=0)
+                    ])
                 motions[ep_count * mult_plan + i] = np.concatenate([
-                    init_obs, p_w_fixed[:max_ep_steps].flatten(), motion_act
+                    init_obs, p_w_fixed[:max_ep_steps].flatten('F'), motion_act
                 ]).flatten()
-            assert motions is not None
             np.save(motions_file_name, motions)
             init_obs = None
             motion_actions = [[] for _ in range(mult_plan)]
