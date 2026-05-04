@@ -69,6 +69,7 @@ motion_time = []
 motions_found = []
 motion_best_time = [[] for _ in range(len(motion_data) // best_time_out_of)]
 n_rrt_paths = 0
+solution_found = 0
 
 print("There are " + str(len(motion_data) // mult_plan) + " episodes.")
 for i in range(0, len(motion_data), mult_plan):
@@ -114,17 +115,20 @@ for i in range(0, len(motion_data), mult_plan):
     positions = np.array(positions)[valid_idx]
     all_valid_actions = np.array(all_actions)[valid_idx]
     all_valid_plans = np.array(all_plans)[valid_idx]
+    solution_found += 1 if len(valid_idx) > 0 else 0
     # n_motions_found.append(len(all_valid_plans))
     sorted_dist = np.argsort(dist)
     env.get_wrapper_attr("set_all_motions")(
-        np.array(positions)[np.flip(np.argsort(dist))]
+        np.array(positions)[np.flip(sorted_dist)]
     )
 
     best_motion_idx = sorted_dist[0] if len(sorted_dist) > 0 else 0
     plan = motion_data[i + best_motion_idx][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
     plan = np.array([plan[:len(plan) // 2], plan[len(plan) // 2:]]).T
     if plot_all_plans:
-        env.get_wrapper_attr("set_trajectory")(all_valid_plans)
+        env.get_wrapper_attr("set_trajectory")(
+            np.array(all_valid_plans)[np.flip(sorted_dist)]
+        )
     else:
         env.get_wrapper_attr("set_trajectory")(plan)
     actions = all_valid_actions[best_motion_idx] if len(sorted_dist) > 0\
@@ -156,7 +160,7 @@ print(np.mean(plan_to_motion_time_distance))
 # print(n_motions_found)
 # print("Number of valid plans", n_rrt_paths)
 print(
-    "Solution found for: ", len(motion_time),
+    "Solution found for: ", solution_found,
     " out of ", len(motion_data) // mult_plan, " episodes")
 print(np.mean(motion_time))
 if calculate_best_time:
