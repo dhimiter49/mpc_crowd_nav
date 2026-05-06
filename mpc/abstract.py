@@ -209,6 +209,8 @@ class AbstractMPC:
         term_const_M, term_const_b = self.terminal_const(vel)
 
         # QP solver
+        # obj_pos_plan, obj_vel_plan = self.obj_plan(goal)
+        # opt_V = self.vec_p(goal, obj_pos_plan, obj_vel_plan, vel)
         opt_V = self.vec_p(goal, pos_plan, vel_plan, vel)
         const_M = scipy.sparse.csr_matrix(np.vstack(const_M))
         const_b = np.hstack(const_b)

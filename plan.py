@@ -126,24 +126,27 @@ class RRT_Plan(Plan):
                     break
             if path is not None:
                 path = np.array(path)
-                print("Path found from RRT, time to goal", round(path[-1][-1], 2))
+                max_time = path[-1][-1]
+                print("Path found from RRT, time to goal", round(max_time, 2))
                 self.time_path = path
-                max_time = path[-1][2]
 
                 sample_time = np.arange(0, max_time, self.DT)
-                interpol_x = np.interp(sample_time, path[:, 2], path[:, 0])[1:]
-                interpol_y = np.interp(sample_time, path[:, 2], path[:, 1])[1:]
-                traj_len = len(interpol_x)
-                if traj_len < self.full_N:
-                    interpol_x = np.concatenate([
-                        interpol_x, np.repeat(interpol_x[-1], self.full_N - traj_len)
+                if len(sample_time) == 1:  # already close enough to goal
+                    self.path = np.repeat(path[0, :2], self.full_N)
+                else:
+                    interpol_x = np.interp(sample_time, path[:, 2], path[:, 0])[1:]
+                    interpol_y = np.interp(sample_time, path[:, 2], path[:, 1])[1:]
+                    traj_len = len(interpol_x)
+                    if traj_len < self.full_N:
+                        interpol_x = np.concatenate([
+                            interpol_x, np.repeat(interpol_x[-1], self.full_N - traj_len)
+                        ])
+                        interpol_y = np.concatenate([
+                            interpol_y, np.repeat(interpol_y[-1], self.full_N - traj_len)
+                        ])
+                    self.path = np.concatenate([
+                        interpol_x[:self.full_N], interpol_y[:self.full_N]
                     ])
-                    interpol_y = np.concatenate([
-                        interpol_y, np.repeat(interpol_y[-1], self.full_N - traj_len)
-                    ])
-                self.path = np.concatenate([
-                    interpol_x[:self.full_N], interpol_y[:self.full_N]
-                ])
                 path = self.path.copy()
             else:
                 print("Path not found from RRT!")
