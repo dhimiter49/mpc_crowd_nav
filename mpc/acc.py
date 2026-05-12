@@ -189,6 +189,14 @@ class MPCAcc(AbstractMPC):
             const_b.append(-limit)
 
 
+    def traj_from_plan(self, current_vel):
+        horizon = len(self.last_planned_traj)
+        traj = np.repeat(self.current_pos, horizon) + self.vec_pos_vel *\
+            np.repeat(current_vel, horizon) + self.mat_pos_acc @\
+            self.last_planned_traj[:horizon].flatten('F')
+        return np.array([traj[:len(traj) // 2], traj[len(traj) // 2:]]).T
+
+
     def __call__(self, **kwargs):
         """
         Run mpc and if the results is None use the last computed braking trajectory.
@@ -196,6 +204,7 @@ class MPCAcc(AbstractMPC):
         plan = kwargs["plan"]
         obs = kwargs["obs"]
         acc = self.core_mpc(plan, obs)
+        _, _, current_vel, _, _, _ = obs
         braking = acc is None
         if braking:
             # print("Executing last computed braking trajectory!")
@@ -205,4 +214,5 @@ class MPCAcc(AbstractMPC):
 
         action = np.array([acc[:self.N], acc[self.N:]]).T
         self.last_planned_traj = action.copy()
+        self.last_traj = self.traj_from_plan(current_vel)
         self.set_action(action, braking)
