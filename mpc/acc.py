@@ -25,6 +25,7 @@ class MPCAcc(AbstractMPC):
         stability_coeff: float = 0.3,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
+        use_plan: bool = False,
     ):
         """
         Args:
@@ -44,6 +45,7 @@ class MPCAcc(AbstractMPC):
             radius_crowd,
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
+            use_plan=use_plan,
         )
         self.stability_coeff = stability_coeff
 
@@ -125,7 +127,7 @@ class MPCAcc(AbstractMPC):
         const_M = kwargs["const_M"]
         const_b = kwargs["const_b"]
         crowd_poss = kwargs["crowd_poss"]
-        vel = kwargs["agent_vel"]
+        agent_vel = kwargs["agent_vel"]
         plan = kwargs["plan"]
         for i, member in enumerate(range(crowd_poss.shape[1])):
             # if considering uncertainty update the distance to the crowd
@@ -147,7 +149,7 @@ class MPCAcc(AbstractMPC):
                 np.eye(self.N) * vec[:, 0], np.eye(self.N) * vec[:, 1]
             ])
             vec_crowd = mat_crowd @ (
-                -poss.flatten("F") + self.vec_pos_vel * np.repeat(vel, self.N)
+                -poss.flatten("F") + self.vec_pos_vel * np.repeat(agent_vel, self.N)
             ) - np.array([dist_to_keep] * self.N)
             mat_crowd_control = -mat_crowd @ self.mat_pos_acc
 
