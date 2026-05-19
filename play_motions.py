@@ -66,7 +66,10 @@ n_crowd = env.unwrapped.n_crowd
 # env.start_video_recorder()
 plan_to_motion_time_distance = []
 motion_time = []
+all_solutions = []
+successful_motion_time = []
 motions_found = []
+all_valid_idxs = []
 motion_best_time = [[] for _ in range(len(motion_data) // best_time_out_of)]
 n_rrt_paths = 0
 solution_found = 0
@@ -110,6 +113,7 @@ for i in range(0, len(motion_data), mult_plan):
         np.linalg.norm(np.array(positions)[:, -1] + agent_pos - goal_pos, axis=-1) < 0.4
     )[0]
     valid_idx = list(set(non_stat_idx) & set(to_goal_idx))
+    all_valid_idxs += list(np.array(valid_idx) + i)
 
     dist = dist[valid_idx]
     positions = np.array(positions)[valid_idx]
@@ -146,8 +150,11 @@ for i in range(0, len(motion_data), mult_plan):
 
     # print("Difference between action time and plan time: " + str(a_time - p_time) + "s")
     plan_to_motion_time_distance.append(a_time - p_time)
+    all_solutions.append(a_time)
     if not np.all(actions == 0):
         motion_time.append(a_time)
+        if len(sorted_dist) > 0:
+            successful_motion_time.append(a_time)
         if calculate_best_time:
             motion_best_time[i // best_time_out_of].append(a_time)
     env.render() if render else None
@@ -156,13 +163,24 @@ for i in range(0, len(motion_data), mult_plan):
 print(np.mean(plan_to_motion_time_distance))
 # print(np.std(plan_to_motion_time_distance))
 # print(motion_time)
+# print(all_solutions)
+
+# time only for successful motion that get to the goal
+# print(len(successful_motion_time))
+# relevant_idx = list(set(indexes_for_thirty) & set(all_valid_idxs))
+# print("Faster by", np.mean(
+#     all_solutions_thirty[relevant_idx] - np.array(all_solutions)[relevant_idx]
+# ))
+# print(successful_motion_time)
+# print(np.mean(successful_motion_time))
+
 # print(motion_best_time)
 # print(n_motions_found)
 # print("Number of valid plans", n_rrt_paths)
 print(
     "Solution found for: ", solution_found,
     " out of ", len(motion_data) // mult_plan, " episodes")
-print(np.mean(motion_time))
+# print(np.mean(motion_time))
 if calculate_best_time:
     print(np.mean([np.min(ls) for ls in motion_best_time if len(ls) > 0]))
 
