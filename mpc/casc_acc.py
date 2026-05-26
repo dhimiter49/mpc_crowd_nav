@@ -38,6 +38,7 @@ class MPCCascAcc(MPCAcc):
             use_plan=use_plan,
         )
         self.M = plan_length
+        self.MAX_DIST_STOP_CROWD = self.CROWD_MAX_VEL * (self.M + self.N) * self.DT * 2.
         self.plan_horizon = self.M
         self.plan_type = plan_type
         self.stability_coeff = stability_coeff

@@ -135,6 +135,10 @@ class AbstractMPC:
         pass
 
 
+    def find_relevant_idxs(self, *_):
+        pass
+
+
     def set_vel_const(self, mat_vel_const, vec_vel_const):
         self.mat_vel_const, self.vec_vel_const = mat_vel_const, vec_vel_const
 
