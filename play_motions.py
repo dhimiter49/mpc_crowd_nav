@@ -14,6 +14,7 @@ ENV_DICT = {
     "-mc": "CrowdNavigation",
     "-mcc": "CrowdNavigationConst",
     "-mcco": "CrowdNavigationConst",
+    "-mccs": "CrowdNavigationConst",
     "-mcs": "CrowdNavigation",
     "-mco": "CrowdNavigation",
     "-mci": "CrowdNavigationInter",
@@ -42,6 +43,9 @@ elif "-mci" in sys.argv:
 elif "-mcco" in sys.argv:
     env_type = ENV_DICT["-mc"]
     env_str = "CrowdNavigationConstOneWay%s-v0" % velocity_str
+elif "-mccs" in sys.argv:
+    env_type = ENV_DICT["-mc"]
+    env_str = "CrowdNavigationConstOneWayShort%s-v0" % velocity_str
 else:
     env_type = ENV_DICT["-d"]
     env_str = "Navigation%s-v0" % velocity_str
