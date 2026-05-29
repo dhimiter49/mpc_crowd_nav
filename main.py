@@ -453,8 +453,10 @@ while count < steps:
                     p_w_fixed = np.concatenate([
                         p, np.repeat(p[-1].reshape(1, 2), max_ep_steps - len(p), axis=0)
                     ])
+                if len(p_w_fixed.shape) > 1:
+                    p_w_fixed[:max_ep_steps].flatten('F')
                 motions[ep_count * mult_plan + i] = np.concatenate([
-                    init_obs, p_w_fixed[:max_ep_steps].flatten('F'), motion_act
+                    init_obs, p_w_fixed, motion_act
                 ]).flatten()
             np.save(motions_file_name, motions)
             init_obs = None

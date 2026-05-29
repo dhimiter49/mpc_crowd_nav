@@ -293,11 +293,11 @@ class AbstractMPC:
 
     def obj_plan(self, goal):
         # steps representing the plan (trajectory)
-        steps = np.zeros((self.N, 2))
+        steps = np.zeros((self.M, 2))
         dist = np.linalg.norm(goal)
 
         # velocity steps representgin also the plan (trajectory)
-        vels = np.stack([(self.AGENT_MAX_VEL) / dist * goal] * self.N).reshape(self.N, 2)
+        vels = np.stack([(self.AGENT_MAX_VEL) / dist * goal] * self.M).reshape(self.M, 2)
 
         # find the steps in 1D based on the maximum velocity, if too close than use
         # directly the goal position
@@ -314,7 +314,7 @@ class AbstractMPC:
         twoD_steps = np.array([goal * i / dist for i in oneD_steps])
 
         # project the steps overshotting the goal to the goal
-        n_steps = min(self.N, len(oneD_steps))
+        n_steps = min(self.M, len(oneD_steps))
         steps[:n_steps, :] = twoD_steps[:n_steps]
         steps[n_steps:, :] += goal
         vels_steps = int(dist / (self. AGENT_MAX_VEL * self.DT))
