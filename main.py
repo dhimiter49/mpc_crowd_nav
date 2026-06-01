@@ -454,7 +454,7 @@ while count < steps:
                         p, np.repeat(p[-1].reshape(1, 2), max_ep_steps - len(p), axis=0)
                     ])
                 if len(p_w_fixed.shape) > 1:
-                    p_w_fixed[:max_ep_steps].flatten('F')
+                    p_w_fixed = p_w_fixed[:max_ep_steps].flatten('F')
                 motions[ep_count * mult_plan + i] = np.concatenate([
                     init_obs, p_w_fixed, motion_act
                 ]).flatten()
