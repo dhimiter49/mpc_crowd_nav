@@ -339,8 +339,8 @@ while count < steps:
                 "_goal_pos": goal_pos
             }
         )
+        ep_plan = pos_plan
         plan = list(zip(pos_plan, pos_plan * 0))  # add empty velocity plan
-        ep_plan = plan[0]
 
     # env.get_wrapper_attr("set_separating_planes")() if "Crowd" in env_type else None
     # env.get_wrapper_attr("set_casc_trajectory")(all_future_pos)
