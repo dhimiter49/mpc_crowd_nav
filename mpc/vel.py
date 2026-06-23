@@ -288,7 +288,7 @@ class MPCVel(AbstractMPC):
                 vel[:N_control - 1] = self.last_planned_traj[1:, 0]
                 vel[N_control - 1] = self.last_planned_traj[-1, 0]
                 vel[N_control:2 * N_control - 1] = self.last_planned_traj[1:, 1]
-                vel[1 * N_control - 1] = self.last_planned_traj[-1:, 1]
+                vel[2 * N_control - 1] = self.last_planned_traj[-1:, 1]
 
         if self.passive_safety:
             action = np.array([
