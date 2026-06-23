@@ -23,6 +23,7 @@ class MPCCascVel(MPCVel):
         stability_coeff: float = 0.2,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
+        passive_safety: bool = True,
         use_plan: bool = False,
     ):
         super().__init__(
@@ -45,38 +46,41 @@ class MPCCascVel(MPCVel):
         self.plan_horizon = self.M
         self.plan_type = plan_type
         self.stability_coeff = stability_coeff
-        self.last_planned_traj = np.zeros((self.M + self.N - 1, 2))
+        self.passive_safety = passive_safety
+        self.N_control = self.N - 1 if self.passive_safety else self.N
+        self.last_planned_traj = np.zeros((self.M + self.N_control, 2))
 
-        mat_pos_vel = self.mat_pos_vel[:self.N, :self.N - 1]
-        self.casc_mat_pos_vel = np.zeros((self.M * self.N, self.M * (self.N - 1)))
+        mat_pos_vel = self.mat_pos_vel[:self.N, :self.N_control]
+        self.casc_mat_pos_vel = np.zeros((self.M * self.N, self.M * (self.N_control)))
         for i in range(self.M):
             self.casc_mat_pos_vel[
                 i * self.N:(i + 1) * self.N,
-                i * (self.N - 1):i * (self.N - 1) + self.N - 1
+                i * (self.N_control):i * (self.N_control) + self.N_control
             ] = mat_pos_vel
             for j in range(i):
                 self.casc_mat_pos_vel[
-                    i * self.N:(i + 1) * self.N, j * (self.N - 1)
+                    i * self.N:(i + 1) * self.N, j * (self.N_control)
                 ] = np.ones(self.N) * self.DT
         self.casc_mat_pos_vel = np.stack([
             np.hstack([self.casc_mat_pos_vel, self.casc_mat_pos_vel * 0]),
             np.hstack([self.casc_mat_pos_vel * 0, self.casc_mat_pos_vel])
-        ]).reshape(2 * self.M * self.N, 2 * self.M * (self.N - 1))
+        ]).reshape(2 * self.M * self.N, 2 * self.M * (self.N_control))
         self.mat_pos_vel = self.make_mat_pos_vel(self.M + self.N, self.M + self.N - 1)
 
-        mat_acc_vel = self.mat_acc_vel[:self.N, :self.N - 1]
-        self.casc_mat_acc_vel = np.zeros((self.M * self.N, self.M * (self.N - 1)))
+        mat_acc_vel = self.mat_acc_vel[:self.N, :self.N_control]
+        self.casc_mat_acc_vel = np.zeros((self.M * self.N, self.M * (self.N_control)))
         for i in range(self.M):
             self.casc_mat_acc_vel[
                 i * self.N:i * self.N + self.N,
-                i * (self.N - 1):i * (self.N - 1) + self.N - 1
+                i * (self.N_control):i * (self.N_control) + self.N_control
             ] = mat_acc_vel
             if i > 0:
-                self.casc_mat_acc_vel[i * self.N, (i - 1) * (self.N - 1)] = -1 / self.DT
+                self.casc_mat_acc_vel[i * self.N, (i - 1) * (self.N_control)] = -1 /\
+                    self.DT
         self.casc_mat_acc_vel = np.stack([
             np.hstack([self.casc_mat_acc_vel, self.casc_mat_acc_vel * 0]),
             np.hstack([self.casc_mat_acc_vel * 0, self.casc_mat_acc_vel])
-        ]).reshape(2 * self.M * self.N, 2 * self.M * (self.N - 1))
+        ]).reshape(2 * self.M * self.N, 2 * self.M * (self.N_control))
         self.mat_acc_vel = self.casc_mat_acc_vel
 
         filter_plan = np.zeros(self.N, dtype=int)
@@ -85,18 +89,18 @@ class MPCCascVel(MPCVel):
 
         self.casc_mat_pos_vel_plan = self.casc_mat_pos_vel[np.nonzero(filter_plan)]
 
-        filter_plan = np.zeros(self.N - 1, dtype=int)
+        filter_plan = np.zeros(self.N_control, dtype=int)
         filter_plan[0] = 1
         filter_plan = np.hstack([np.hstack([filter_plan] * self.M)] * 2)
         self.casc_mat_vel_plan = np.eye(
-            2 * self.M * (self.N - 1)
+            2 * self.M * (self.N_control)
         )[np.nonzero(filter_plan)]
 
 
         if self.plan_type == "Position":
             self.mat_Q = scipy.sparse.csc_matrix(
                 self.casc_mat_pos_vel_plan.T @ self.casc_mat_pos_vel_plan +
-                self.stability_coeff * np.eye(2 * self.M * (self.N - 1))
+                self.stability_coeff * np.eye(2 * self.M * (self.N_control))
             )
             self.vec_p = lambda __1__, plan, __2__, vel: (
                 -plan + 0.5 * self.DT * np.repeat(vel, self.M)
@@ -130,9 +134,9 @@ class MPCCascVel(MPCVel):
         else:
             raise NotImplementedError
 
-        self.gen_vel_const((self.N - 1) * self.M)
+        self.gen_vel_const((self.N_control) * self.M)
         self.gen_acc_const(self.N * self.M)
-        self.last_planned_traj_casc = np.zeros((self.M * (self.N - 1) * 2))
+        self.last_planned_traj_casc = np.zeros((self.M * (self.N_control) * 2))
 
 
     def gen_crowd_const(self, **kwargs):
@@ -187,9 +191,11 @@ class MPCCascVel(MPCVel):
 
     def find_relevant_idxs(self, vel):
         idxs = self.relevant_idxs(vel)
-        idxs = np.hstack(list(idxs) * (self.N - 1) * self.M) + np.repeat(
+        idxs = np.hstack(list(idxs) * (self.N_control) * self.M) + np.repeat(
             np.arange(
-                0, (self.N - 1) * self.M * self.circle_lin_sides, self.circle_lin_sides
+                0,
+                (self.N_control) * self.M * self.circle_lin_sides,
+                self.circle_lin_sides
             ),
             3
         )
@@ -270,26 +276,38 @@ class MPCCascVel(MPCVel):
         if braking:
             # print("Executing last computed braking trajectory!")
             vel = self.last_planned_traj[1:].flatten("F")
+            if not self.passive_safety:
+                N_control = len(self.last_planned_traj)
+                vel = np.zeros(2 * N_control)
+                vel[:N_control - 1] = self.last_planned_traj[1:, 0]
+                vel[N_control - 1] = self.last_planned_traj[-1, 0]
+                vel[N_control:2 * N_control - 1] = self.last_planned_traj[1:, 1]
+                vel[2 * N_control - 1] = self.last_planned_traj[-1:, 1]
             self.last_planned_traj_casc = np.concatenate([
-                self.last_planned_traj_casc[self.N - 1:self.M * (self.N - 1)],
-                np.zeros(self.N - 1),
-                self.last_planned_traj_casc[(self.M + 1) * (self.N - 1):],
-                np.zeros(self.N - 1),
+                self.last_planned_traj_casc[self.N_control:self.M * (self.N_control)],
+                np.zeros(self.N_control),
+                self.last_planned_traj_casc[(self.M + 1) * (self.N_control):],
+                np.zeros(self.N_control),
             ])
         else:
             self.last_planned_traj_casc = vel
             idx_x = np.concatenate([
-                [i * (self.N - 1) for i in range(self.M)],
+                [i * (self.N_control) for i in range(self.M)],
                 np.arange(
-                    (self.M - 1) * (self.N - 1) + 1, self.M * (self.N - 1)
+                    (self.M - 1) * (self.N_control) + 1, self.M * (self.N_control)
                 )
             ])
-            idx_y = (self.M * (self.N - 1)) + idx_x
+            idx_y = (self.M * (self.N_control)) + idx_x
             vel = np.hstack([vel[idx_x], vel[idx_y]])
-        action = np.array([
-            np.append(vel[:self.M + self.N - 2], 0),
-            np.append(vel[self.M + self.N - 2:], 0)
-        ]).T
+        if self.passive_safety:
+            action = np.array([
+                np.append(vel[:self.M + self.N_control - 1], 0),
+                np.append(vel[self.M + self.N_control - 1:], 0)
+            ]).T
+        else:
+            action = np.array([
+                vel[:self.M + self.N_control - 1], vel[self.M + self.N_control - 1:]
+            ]).T
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
         self.set_action(action, braking)

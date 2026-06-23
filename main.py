@@ -101,7 +101,7 @@ n_crowd = env.unwrapped.n_crowd
 max_ep_steps = env.unwrapped.MAX_EPISODE_STEPS
 
 print("Observation space: ", obs_shape)
-print("Acion space: ", act_shape)
+print("Action space: ", act_shape)
 obs_handler = ObsHandler(env_type, n_crowd, obs_noise="-no" in sys.argv)
 render = "-nr" not in sys.argv
 
