@@ -465,7 +465,7 @@ class AbstractMPC:
         zero_idx = np.where(np.linalg.norm(poss, axis=-1) == 0)[0]
         poss[zero_idx] += 1e-8
         poss_ = poss.copy()
-        if self.last_traj is None or self.use_plan:
+        if self.use_plan:
             if "Casc" in type(self).__name__:
                 plan = np.array([plan[:self.M], plan[self.M:]]).T
                 casc_plan = np.zeros((self.M * self.N, 2))
