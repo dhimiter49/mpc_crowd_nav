@@ -25,6 +25,7 @@ class MPCCascVel(MPCVel):
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,
         use_plan: bool = False,
+        use_always_plan: bool = False,
     ):
         super().__init__(
             horizon,
@@ -40,6 +41,7 @@ class MPCCascVel(MPCVel):
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
             use_plan=use_plan,
+            use_always_plan=use_always_plan,
         )
         self.M = plan_length
         self.MAX_DIST_STOP_CROWD = self.CROWD_MAX_VEL * (self.M + self.N) * self.DT * 2.

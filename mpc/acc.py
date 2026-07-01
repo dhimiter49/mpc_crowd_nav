@@ -26,6 +26,7 @@ class MPCAcc(AbstractMPC):
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         use_plan: bool = False,
+        use_always_plan: bool = False,
     ):
         """
         Args:
@@ -46,6 +47,7 @@ class MPCAcc(AbstractMPC):
             horizon_tries=horizon_tries,
             relax_uncertainty=relax_uncertainty,
             use_plan=use_plan,
+            use_always_plan=use_always_plan,
         )
         self.stability_coeff = stability_coeff
 

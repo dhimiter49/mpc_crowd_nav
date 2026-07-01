@@ -24,6 +24,7 @@ class MPCLinear(MPCAcc):
         plan_type: str = "Position",
         horizon_tries: int = 0,
         use_plan: bool = False,
+        use_always_plan: bool = False,
     ):
         super().__init__(
             horizon,
@@ -38,6 +39,7 @@ class MPCLinear(MPCAcc):
             radius_crowd,
             horizon_tries=horizon_tries,
             use_plan=use_plan,
+            use_always_plan=use_always_plan,
         )
         self.plan_type = plan_type
         self.stability_coeff = stability_coeff
