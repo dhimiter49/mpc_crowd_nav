@@ -313,3 +313,7 @@ class MPCCascVel(MPCVel):
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
         self.set_action(action, braking)
+
+
+    def reset(self):
+        self.last_planned_traj_casc = np.zeros((self.M * (self.N_control) * 2))

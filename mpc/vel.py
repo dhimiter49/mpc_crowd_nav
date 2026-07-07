@@ -57,8 +57,8 @@ class MPCVel(AbstractMPC):
         # (mat)rix to project control (vel)ocities to future (pos)itions only for crowd
         # since it is possible to have a shorter horizon only for the crowd constraint
         self.mat_pos_vel_crowd = np.concatenate([
-            self.mat_pos_vel[:self.N_crowd],
-            self.mat_pos_vel[self.N: self.N + self.N_crowd]
+            self.mat_pos_vel[:self.N_crowd_fut],
+            self.mat_pos_vel[self.N: self.N + self.N_crowd_fut]
         ])
 
         # (mat)rix to project control (vel)ocity to future (acc)elerations
@@ -203,12 +203,12 @@ class MPCVel(AbstractMPC):
 
             # constraint formula
             mat_crowd = np.hstack([
-                np.eye(self.N_crowd) * vec[:, 0], np.eye(self.N_crowd) * vec[:, 1]
+                np.eye(self.N_crowd_fut) * vec[:, 0], np.eye(self.N_crowd_fut) * vec[:, 1]
             ])
 
             # if considering uncertainty update the distance to the crowd
             if isinstance(dist_to_keep, float):
-                dist_to_keep = [dist_to_keep] * self.N_crowd
+                dist_to_keep = [dist_to_keep] * (self.N_crowd_fut)
             # relaxing the uncertainty constraint
             if self.uncertainty == "rdist":
                 # lower uncertainty in the future for low velocities
@@ -222,7 +222,8 @@ class MPCVel(AbstractMPC):
 
             # constraint formula
             vec_crowd = mat_crowd @ (
-                -poss.flatten("F") + 0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
+                -poss.flatten("F") +
+                0.5 * self.DT * np.repeat(agent_vel, self.N_crowd_fut)
             ) - np.array(dist_to_keep)
             mat_crowd_control = -mat_crowd @ self.mat_pos_vel_crowd
 

@@ -58,6 +58,7 @@ class AbstractMPC:
         self.horizon_tries = horizon_tries
         self.short_hor_only_crowd = False
         self.N_crowd = self.N if horizon_crowd_pred is None else horizon_crowd_pred
+        self.N_crowd_fut = self.N_crowd - 1
         self.DT = dt
         self.PHYSICAL_SPACE = physical_space
         self.AGENT_MAX_VEL = agent_max_vel
@@ -335,10 +336,10 @@ class AbstractMPC:
         crowd_poss, crowd_vels = self.vel_uncertainty(crowd_poss, crowd_vels)
 
         # propagate position in the future based on the currrent position and current vel
-        return np.stack([crowd_poss] * self.N_crowd) + np.einsum(
+        return np.stack([crowd_poss] * self.N_crowd_fut) + np.einsum(
             'ijk,i->ijk',
-            np.stack([crowd_vels] * self.N_crowd, 0) * self.DT,
-            np.arange(1, self.N_crowd + 1)
+            np.stack([crowd_vels] * self.N_crowd_fut, 0) * self.DT,
+            np.arange(1, self.N_crowd_fut + 1)
         )
 
 
@@ -486,7 +487,7 @@ class AbstractMPC:
         if self.last_traj is not None and not self.use_always_plan:
             last_traj = self.last_traj[1:]
             traj_hor = len(last_traj)
-            if "Casc" not in type(self).__name__ and traj_hor < self.N:
+            if "Casc" not in type(self).__name__ and traj_hor < self.N_crowd_fut:
                 last_traj = np.concatenate([
                     last_traj, np.stack([last_traj[-1]] * (self.N - traj_hor), axis=0)
                 ])
