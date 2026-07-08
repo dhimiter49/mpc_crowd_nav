@@ -6,6 +6,12 @@ import gymnasium as gym
 
 motion_data_path = sys.argv[1]
 motion_data = np.load(motion_data_path)
+# traj_viz = np.load("full_traj_20_100_og.npy")
+traj_viz = None
+
+
+indexes_for_thirty = []
+all_solutions_thirty = np.array([])
 
 
 ENV_DICT = {
@@ -78,6 +84,8 @@ motion_best_time = [[] for _ in range(len(motion_data) // best_time_out_of)]
 n_rrt_paths = 0
 solution_found = 0
 
+special_render = []
+
 print("There are " + str(len(motion_data) // mult_plan) + " episodes.")
 for i in range(0, len(motion_data), mult_plan):
     trajectory_data = motion_data[i]
@@ -124,15 +132,25 @@ for i in range(0, len(motion_data), mult_plan):
     all_valid_actions = np.array(all_actions)[valid_idx]
     all_valid_plans = np.array(all_plans)[valid_idx]
     solution_found += 1 if len(valid_idx) > 0 else 0
+    # if len(valid_idx) == 0:
+    #     print("aaaa", i)
     # n_motions_found.append(len(all_valid_plans))
     sorted_dist = np.argsort(dist)
+    temp_pos = np.array(positions)[np.flip(sorted_dist)]
+    # idx = sorted_dist[0] if len(sorted_dist) > 0 else -1
+    idx = 0
     env.get_wrapper_attr("set_all_motions")(
-        np.array(positions)[np.flip(sorted_dist)]
+        temp_pos[-1:]
     )
 
     best_motion_idx = sorted_dist[0] if len(sorted_dist) > 0 else 0
     plan = motion_data[i + best_motion_idx][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
     plan = np.array([plan[:len(plan) // 2], plan[len(plan) // 2:]]).T
+    if traj_viz is not None:
+        if len(sorted_dist) == 0:
+            env.get_wrapper_attr("set_casc_trajectory")(traj_viz[i + idx] * 0 + 100)
+        else:
+            env.get_wrapper_attr("set_casc_trajectory")(traj_viz[i + idx])
     if plot_all_plans:
         env.get_wrapper_attr("set_trajectory")(
             np.array(all_valid_plans)[np.flip(sorted_dist)]
@@ -145,7 +163,7 @@ for i in range(0, len(motion_data), mult_plan):
     a_time = 0
     for a in actions:
         a_time += 0.1
-        env.render() if render else None
+        env.render() if render or i in special_render else None
         obs, reward, terminated, truncated, info = env.step(a)
         if terminated or truncated:
             break
@@ -161,7 +179,7 @@ for i in range(0, len(motion_data), mult_plan):
             successful_motion_time.append(a_time)
         if calculate_best_time:
             motion_best_time[i // best_time_out_of].append(a_time)
-    env.render() if render else None
+    env.render() if render or i in special_render else None
     env.reset()
 # print(plan_to_motion_time_distance)
 print(np.mean(plan_to_motion_time_distance))
