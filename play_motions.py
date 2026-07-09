@@ -83,6 +83,7 @@ all_valid_idxs = []
 motion_best_time = [[] for _ in range(len(motion_data) // best_time_out_of)]
 n_rrt_paths = 0
 solution_found = 0
+n_all_zero_actions = 0
 
 special_render = []
 
@@ -108,6 +109,7 @@ for i in range(0, len(motion_data), mult_plan):
         motion_data[i + j][6 + n_crowd * 4 + horizon * 2:].reshape(-1, 2)
         for j in range(mult_plan)
     ]
+    n_all_zero_actions += 1 if np.all(np.array(all_actions) == 0) else 0
     all_plans = [
         motion_data[i + j][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
         .reshape(-1, 2, order='F')
@@ -137,8 +139,7 @@ for i in range(0, len(motion_data), mult_plan):
     # n_motions_found.append(len(all_valid_plans))
     sorted_dist = np.argsort(dist)
     temp_pos = np.array(positions)[np.flip(sorted_dist)]
-    # idx = sorted_dist[0] if len(sorted_dist) > 0 else -1
-    idx = 0
+    idx = sorted_dist[0] if len(sorted_dist) > 0 else 0
     env.get_wrapper_attr("set_all_motions")(
         temp_pos[-1:]
     )
@@ -147,10 +148,8 @@ for i in range(0, len(motion_data), mult_plan):
     plan = motion_data[i + best_motion_idx][6 + n_crowd * 4:6 + n_crowd * 4 + horizon * 2]
     plan = np.array([plan[:len(plan) // 2], plan[len(plan) // 2:]]).T
     if traj_viz is not None:
-        if len(sorted_dist) == 0:
-            env.get_wrapper_attr("set_casc_trajectory")(traj_viz[i + idx] * 0 + 100)
-        else:
-            env.get_wrapper_attr("set_casc_trajectory")(traj_viz[i + idx])
+
+        env.get_wrapper_attr("set_casc_trajectory")(traj_viz[i + idx])
     if plot_all_plans:
         env.get_wrapper_attr("set_trajectory")(
             np.array(all_valid_plans)[np.flip(sorted_dist)]
@@ -198,7 +197,8 @@ print(np.mean(plan_to_motion_time_distance))
 
 # print(motion_best_time)
 # print(n_motions_found)
-# print("Number of valid plans", n_rrt_paths)
+print("Number of valid plans", n_rrt_paths)
+print("All zero actions, no qp solution: " + str(n_all_zero_actions))
 print(
     "Solution found for: ", solution_found,
     " out of ", len(motion_data) // mult_plan, " episodes")
