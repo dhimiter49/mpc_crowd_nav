@@ -11,6 +11,7 @@ import multiprocessing as mp
 
 
 from mpc.factory import get_mpc
+from utils.plotting import plot_in_time
 from const_ctrl.const_controller import ConstController
 from plan import RRT_Plan, Plan
 from obs_handler import ObsHandler
@@ -98,7 +99,6 @@ obs_shape = env.observation_space.shape
 act_shape = env.action_space.shape
 DT = env.unwrapped.dt
 n_crowd = env.unwrapped.n_crowd
-max_ep_steps = env.unwrapped.MAX_EPISODE_STEPS
 
 print("Observation space: ", obs_shape)
 print("Action space: ", act_shape)
@@ -110,6 +110,7 @@ M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
 steps = 1000 if "-st" not in sys.argv else int(sys.argv[sys.argv.index("-st") + 1])
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
+max_ep_steps = env.unwrapped.MAX_EPISODE_STEPS
 
 
 ####################################  SETTING UP MPC #####################################
@@ -351,7 +352,7 @@ while count < steps:
         controller[0].reset() if gen_motion else None
         braking_flags = np.array([False] * n_agents)
         if mpc_type != "simple" or "-rrt" in sys.argv:
-            env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(p, plan_steps))
+            env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(p, M))
         if n_agents > 1:
             actions = []
             output, processes, queues = [], [], []
@@ -431,6 +432,9 @@ while count < steps:
     if terminated or truncated or gen_motion:
         # print("braking flags: ", braking_flags)
         # print("braking steps: ", braking_steps)
+
+        # plot_in_time(controller, env, DT)
+
         braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
         old_braking_flags = False
         env.render() if render else None
