@@ -305,3 +305,7 @@ class MPCVel(AbstractMPC):
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
         self.set_action(action, braking)
+
+
+    def reset(self):
+        super().reset()

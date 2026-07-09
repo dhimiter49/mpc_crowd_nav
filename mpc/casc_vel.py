@@ -317,3 +317,4 @@ class MPCCascVel(MPCVel):
 
     def reset(self):
         self.last_planned_traj_casc = np.zeros((self.M * (self.N_control) * 2))
+        super().reset()
