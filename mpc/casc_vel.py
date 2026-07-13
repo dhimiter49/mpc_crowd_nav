@@ -51,6 +51,7 @@ class MPCCascVel(MPCVel):
         self.passive_safety = passive_safety
         self.N_control = self.N - 1 if self.passive_safety else self.N
         self.last_planned_traj = np.zeros((self.M + self.N_control, 2))
+        self.counter = 0
 
         mat_pos_vel = self.mat_pos_vel[:self.N, :self.N_control]
         self.casc_mat_pos_vel = np.zeros((self.M * self.N, self.M * (self.N_control)))
@@ -250,18 +251,18 @@ class MPCCascVel(MPCVel):
 
 
     def traj_from_plan(self, current_vel):
-        # all_future_pos = np.repeat(self.current_pos, self.M * self.N) +\
-        #     0.5 * self.DT * np.repeat(current_vel, self.M * self.N) +\
-        #     self.casc_mat_pos_vel @ self.last_planned_traj_casc
-        # all_future_pos = np.array([
-        #     all_future_pos[:self.N * self.M], all_future_pos[self.N * self.M:]
-        # ]).T
-        all_future_pos = np.repeat(self.current_pos, self.M + self.N) +\
-            0.5 * self.DT * np.repeat(current_vel, self.M + self.N) +\
-            self.mat_pos_vel @ self.last_planned_traj.flatten('F')
+        all_future_pos = np.repeat(self.current_pos, self.M * self.N) +\
+            0.5 * self.DT * np.repeat(current_vel, self.M * self.N) +\
+            self.casc_mat_pos_vel @ self.last_planned_traj_casc
         all_future_pos = np.array([
-            all_future_pos[:self.N + self.M], all_future_pos[self.N + self.M:]
+            all_future_pos[:self.N * self.M], all_future_pos[self.N * self.M:]
         ]).T
+        # all_future_pos = np.repeat(self.current_pos, self.M + self.N) +\
+        #     0.5 * self.DT * np.repeat(current_vel, self.M + self.N) +\
+        #     self.mat_pos_vel @ self.last_planned_traj.flatten('F')
+        # all_future_pos = np.array([
+        #     all_future_pos[:self.N + self.M], all_future_pos[self.N + self.M:]
+        # ]).T
         return all_future_pos
 
 
@@ -312,6 +313,8 @@ class MPCCascVel(MPCVel):
             ]).T
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
+        np.save("full_traj_" + str(self.M) + "_" + str(self.counter) + ".npy", self.last_traj)
+        self.counter += 1
         self.set_action(action, braking)
 
 

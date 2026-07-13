@@ -110,7 +110,7 @@ M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
 steps = 1000 if "-st" not in sys.argv else int(sys.argv[sys.argv.index("-st") + 1])
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
-max_ep_steps = env.unwrapped.MAX_EPISODE_STEPS
+max_ep_steps = M
 
 
 ####################################  SETTING UP MPC #####################################
@@ -279,7 +279,7 @@ while count < steps:
         if read_traj_plan is None:
             pos_plan = motion_data[
                 count * mult_plan:(count + 1) * mult_plan,
-                6 + n_crowd * 4:6 + n_crowd * 4 + plan_steps * 2
+                6 + n_crowd * 4:6 + n_crowd * 4 + 100 * 2
             ]
         else:
             assert traj_data is not None
@@ -340,6 +340,10 @@ while count < steps:
                 "_goal_pos": goal_pos
             }
         )
+        temp_list = np.concatenate([
+            np.arange(max_ep_steps), np.arange(100, 100 + max_ep_steps)
+        ])
+        pos_plan = pos_plan[:,temp_list]
         ep_plan = pos_plan
         plan = list(zip(pos_plan, pos_plan * 0))  # add empty velocity plan
 
@@ -389,7 +393,7 @@ while count < steps:
             control_plan, braking_flag = controller[0].get_action(p, obs)
             # traj = controller[0].traj_from_plan(obs[2])
             # env.set_trajectory(traj)
-            actions = control_plan[:R]
+            actions = control_plan[:max_ep_steps]
             braking_flags[0] = braking_flag
             tot_braking_steps += 1 if braking_flag and not old_braking_flags else 0
 
