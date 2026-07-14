@@ -106,7 +106,7 @@ obs_handler = ObsHandler(env_type, n_crowd, obs_noise="-no" in sys.argv)
 render = "-nr" not in sys.argv
 
 N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
-M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
+M = N if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
 steps = 1000 if "-st" not in sys.argv else int(sys.argv[sys.argv.index("-st") + 1])
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])

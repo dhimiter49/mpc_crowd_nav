@@ -483,7 +483,9 @@ class AbstractMPC:
                     casc_plan[i * self.N:(i + 1) * self.N] = safety_chunk
                 poss_ -= casc_plan
             else:
-                poss_ -= np.array([plan[:self.N], plan[self.N:]]).T
+                poss_ -= np.array([
+                    plan[:self.N_crowd_fut], plan[self.N:self.N + self.N_crowd_fut]
+                ]).T
         if self.last_traj is not None and not self.use_always_plan:
             last_traj = self.last_traj[1:]
             traj_hor = len(last_traj)
