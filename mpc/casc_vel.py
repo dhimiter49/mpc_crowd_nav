@@ -69,6 +69,20 @@ class MPCCascVel(MPCVel):
         ]).reshape(2 * self.M * self.N, 2 * self.M * (self.N_control))
         self.mat_pos_vel = self.make_mat_pos_vel(self.M + self.N, self.M + self.N - 1)
 
+
+        # (mat)rix to project control (vel)ocities to future (pos)itions only for crowd
+        # since it is possible to have a shorter horizon only for the crowd constraint
+        # for cascading we dont really dynamically change the horizon however the horizon
+        # is onw step shorter since it is possible to crash on the last step since the
+        # agent will have zero velocity (at least in passive safety)
+        braking_idx_wout_last = np.array([
+            i for i in range(self.M * self.N) if i % self.N != self.N - 1
+        ])
+        self.casc_mat_pos_vel_crowd = np.concatenate([
+            self.casc_mat_pos_vel[braking_idx_wout_last],
+            self.casc_mat_pos_vel[self.N * self.M + braking_idx_wout_last]
+        ])
+
         mat_acc_vel = self.mat_acc_vel[:self.N, :self.N_control]
         self.casc_mat_acc_vel = np.zeros((self.M * self.N, self.M * (self.N_control)))
         for i in range(self.M):
@@ -166,12 +180,13 @@ class MPCCascVel(MPCVel):
             if ignore:
                 continue
             mat_crowd = np.hstack([
-                np.eye(self.N * self.M) * vec[:, 0], np.eye(self.N * self.M) * vec[:, 1]
+                np.eye((self.N - 1) * self.M) * vec[:, 0],
+                np.eye((self.N - 1) * self.M) * vec[:, 1]
             ])
 
             # if considering uncertainty update the distance to the crowd
             if isinstance(dist_to_keep, float):
-                dist_to_keep = [dist_to_keep] * self.N * self.M
+                dist_to_keep = [dist_to_keep] * (self.N - 1) * self.M
             # relaxing the uncertainty constraint
             if self.uncertainty == "rdist":
                 # lower uncertainty in the future for low velocities
@@ -184,9 +199,9 @@ class MPCCascVel(MPCVel):
                 dist_to_keep *= (1. - step_diff * (1. - speed / self.CROWD_MAX_VEL))
 
             vec_crowd = mat_crowd @ (
-                -poss.flatten("F") + 0.5 * self.DT * np.repeat(vel, self.N * self.M)
+                -poss.flatten("F") + 0.5 * self.DT * np.repeat(vel, (self.N - 1) * self.M)
             ) - np.array(dist_to_keep)
-            mat_crowd_control = -mat_crowd @ self.casc_mat_pos_vel
+            mat_crowd_control = -mat_crowd @ self.casc_mat_pos_vel_crowd
             const_M.append(mat_crowd_control)
             const_b.append(vec_crowd)
 
@@ -223,10 +238,10 @@ class MPCCascVel(MPCVel):
     def calculate_crowd_poss(self, crowd_poss, crowd_vels):
         crowd_vels = crowd_vels.reshape(-1, 2) if crowd_vels is not None else None
         crowd_vels = crowd_poss * 0 if crowd_vels is None else crowd_vels
-        horizon_crowd_poss = np.stack([crowd_poss] * (self.N + self.M)) + np.einsum(
+        horizon_crowd_poss = np.stack([crowd_poss] * (self.N + self.M - 1)) + np.einsum(
             'ijk,i->ijk',
-            np.stack([crowd_vels] * (self.N + self.M), 0) * self.DT,
-            np.arange(1, (self.N + self.M + 1))
+            np.stack([crowd_vels] * (self.N + self.M - 1), 0) * self.DT,
+            np.arange(1, (self.N + self.M))
         )
         return self.cascade_crowd_positions(horizon_crowd_poss)
 
@@ -242,10 +257,10 @@ class MPCCascVel(MPCVel):
         Return:
             (numpy.ndarray): the predicted positions of the crowd throughout the horizon
         """
-        casc_crowd_poss = np.zeros((self.M * self.N,) + crowd_poss.shape[1:])
+        casc_crowd_poss = np.zeros((self.M * (self.N - 1),) + crowd_poss.shape[1:])
         for i in range(self.M):
-            casc_crowd_poss[i * self.N:(i + 1) * self.N, :, :] =\
-                crowd_poss[i:i + self.N, :, :]
+            casc_crowd_poss[i * (self.N - 1):(i + 1) * (self.N - 1), :, :] =\
+                crowd_poss[i:i + self.N - 1, :, :]
         return casc_crowd_poss
 
 
