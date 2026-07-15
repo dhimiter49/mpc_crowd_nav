@@ -110,6 +110,9 @@ class AbstractMPC:
         self.pos_horizon = None
         self.last_pos = None
 
+        # self.agent_pos = []
+        # self.crowd_pos = []
+
 
     def get_action(self, plan, obs):
         self.__call__(plan=plan, obs=obs)
@@ -157,6 +160,9 @@ class AbstractMPC:
     def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
         goal, crowd_poss, vel, crowd_vels, walls, radii = obs
+
+        # self.agent_pos.append(self.current_pos)
+        # self.crowd_pos.append(crowd_poss + self.current_pos)
 
         # Read the radii again, maybe they have changed, in that case,
         # update the safety distances
