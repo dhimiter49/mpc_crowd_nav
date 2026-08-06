@@ -53,6 +53,10 @@ class MPCAcc(AbstractMPC):
 
         # (vec)tor to project initial (vel)ocity to future (pos)itions
         self.vec_pos_vel = np.hstack([np.arange(1, self.N + 1)] * 2) * self.DT
+        self.vec_pos_vel_crowd = np.concatenate([
+            self.vec_pos_vel[:self.N_crowd_fut],
+            self.vec_pos_vel[self.N:self.N + self.N_crowd_fut]
+        ])
 
         # (mat)rix to project control (acc)eleration to future (pos)itions
         self.mat_pos_acc = scipy.linalg.toeplitz(
@@ -63,6 +67,11 @@ class MPCAcc(AbstractMPC):
             np.hstack([self.mat_pos_acc, self.mat_pos_acc * 0]),
             np.hstack([self.mat_pos_acc * 0, self.mat_pos_acc])
         ]).reshape(2 * self.N, 2 * self.N)
+
+        self.mat_pos_acc_crowd = np.concatenate([
+            self.mat_pos_acc[:self.N_crowd_fut],
+            self.mat_pos_acc[self.N: self.N + self.N_crowd_fut]
+        ])
 
         # (mat)rix to project control (acc)eleration to future (vel)ocities
         self.mat_vel_acc = self.DT * scipy.linalg.toeplitz(
@@ -148,12 +157,13 @@ class MPCAcc(AbstractMPC):
 
             # constraint formula
             mat_crowd = np.hstack([
-                np.eye(self.N) * vec[:, 0], np.eye(self.N) * vec[:, 1]
+                np.eye(self.N_crowd_fut) * vec[:, 0], np.eye(self.N_crowd_fut) * vec[:, 1]
             ])
             vec_crowd = mat_crowd @ (
-                -poss.flatten("F") + self.vec_pos_vel * np.repeat(agent_vel, self.N)
-            ) - np.array([dist_to_keep] * self.N)
-            mat_crowd_control = -mat_crowd @ self.mat_pos_acc
+                -poss.flatten("F") + self.vec_pos_vel_crowd *
+                np.repeat(agent_vel, self.N_crowd_fut)
+            ) - np.array([dist_to_keep] * self.N_crowd_fut)
+            mat_crowd_control = -mat_crowd @ self.mat_pos_acc_crowd
 
             # update/add constraints
             const_M.append(mat_crowd_control)

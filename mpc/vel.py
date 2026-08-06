@@ -50,6 +50,8 @@ class MPCVel(AbstractMPC):
         self.plan_type = plan_type
         self.passive_safety = passive_safety
         self.N_control = self.N - 1 if self.passive_safety else self.N
+        if not self.passive_safety:
+            self.N_crowd_fut = self.N_crowd
 
         # (mat)rix to project control (vel)ocities to future (pos)itions
         self.mat_pos_vel = self.make_mat_pos_vel(self.N, self.N_control)
