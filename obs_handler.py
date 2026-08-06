@@ -81,4 +81,4 @@ class ObsHandler:
             return new_list_of_obs
         else:
             # goal, agent velocity, walls
-            return obs[:2], None, obs[2:4], None, obs[-4:]
+            return obs[:2], None, obs[2:4], None, obs[-4:], None
