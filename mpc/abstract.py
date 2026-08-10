@@ -275,6 +275,8 @@ class AbstractMPC:
                     const_M = np.delete(const_M, del_idx, axis=1)
                     opt_V = np.delete(opt_V, del_idx, axis=0)
                     opt_Q = scipy.sparse.csr_matrix(opt_Q)
+                    if term_const_M is not None:
+                        term_const_M = np.delete(term_const_M, del_idx, axis=1)
 
                 const_M = scipy.sparse.csr_matrix(const_M)
 

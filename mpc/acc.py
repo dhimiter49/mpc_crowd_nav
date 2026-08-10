@@ -220,11 +220,14 @@ class MPCAcc(AbstractMPC):
         braking = acc is None
         if braking:
             # print("Executing last computed braking trajectory!")
-            acc = np.zeros(2 * self.N)
-            acc[0:self.N - 1] = self.last_planned_traj[1:, 0]
-            acc[self.N:2 * self.N - 1] = self.last_planned_traj[1:, 1]
+            N_control = len(self.last_planned_traj)
+            acc = np.zeros(2 * N_control)
+            acc[:N_control - 1] = self.last_planned_traj[1:, 0]
+            acc[N_control - 1] = self.last_planned_traj[-1, 0]
+            acc[N_control:2 * N_control - 1] = self.last_planned_traj[1:, 1]
+            acc[2 * N_control - 1] = self.last_planned_traj[-1:, 1]
 
-        action = np.array([acc[:self.N], acc[self.N:]]).T
+        action = np.array([acc[:len(acc) // 2], acc[len(acc) // 2:]]).T
         self.last_planned_traj = action.copy()
         if len(self.last_planned_traj) == self.N:
             self.last_traj = self.traj_from_plan(current_vel)
