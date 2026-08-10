@@ -226,5 +226,8 @@ class MPCAcc(AbstractMPC):
 
         action = np.array([acc[:self.N], acc[self.N:]]).T
         self.last_planned_traj = action.copy()
-        self.last_traj = self.traj_from_plan(current_vel)
+        if len(self.last_planned_traj) == self.N:
+            self.last_traj = self.traj_from_plan(current_vel)
+        else:  # if horizon was shortened, then cannot use last control
+            self.last_traj = None
         self.set_action(action, braking)

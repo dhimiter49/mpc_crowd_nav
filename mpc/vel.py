@@ -305,7 +305,10 @@ class MPCVel(AbstractMPC):
         #     0.5 * np.repeat(current_vel, self.N) * self.DT +\
         #     self.mat_pos_vel @ action[:-1].flatten('F')
         self.last_planned_traj = action.copy()
-        self.last_traj = self.traj_from_plan(current_vel)
+        if len(self.last_planned_traj) == self.N:
+            self.last_traj = self.traj_from_plan(current_vel)
+        else:  # if horizon was shortened, then cannot use last control
+            self.last_traj = None
         self.set_action(action, braking)
 
 
