@@ -22,7 +22,7 @@ class MPCVel(AbstractMPC):
         plan_type: str = "Position",
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
-        stability_coeff: float = 0.25,
+        stability_coeff: float = 0.,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,

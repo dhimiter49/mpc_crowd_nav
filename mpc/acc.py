@@ -22,7 +22,7 @@ class MPCAcc(AbstractMPC):
         crowd_max_acc: float,
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
-        stability_coeff: float = 0.3,
+        stability_coeff: float = 0.,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         use_plan: bool = False,
