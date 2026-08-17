@@ -90,13 +90,13 @@ class AbstractMPC:
             if radius_crowd is not None:
                 self.CONST_DIST_CROWD = np.expand_dims(
                     self.CONST_DIST_CROWD, -1
-                ).repeat(self.N_crowd, -1)
+                ).repeat(self.N_crowd_fut, -1)
             else:
-                self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd)
+                self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd_fut)
             self.CONST_DIST_CROWD += max(
                 self.AGENT_MAX_VEL * self.DT, self.AGENT_MAX_ACC * self.DT ** 2,
                 self.CROWD_MAX_VEL * self.DT, self.CROWD_MAX_ACC * self.DT ** 2
-            ) * np.arange(1, self.N_crowd + 1)
+            ) * np.arange(1, self.N_crowd_fut + 1)
 
         # linearization of the acceleration and velocity limits
         self.circle_lin_sides = 8
