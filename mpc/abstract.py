@@ -484,7 +484,8 @@ class AbstractMPC:
                     if i > self.M - self.N_crowd_fut:
                         n_missing = i - self.M + self.N_crowd_fut
                         safety_chunk = np.concatenate([
-                            plan[i:i + self.N_crowd_fut], np.repeat(plan[-1:], n_missing, axis=0)
+                            plan[i:i + self.N_crowd_fut],
+                            np.repeat(plan[-1:], n_missing, axis=0)
                         ])
                     else:
                         safety_chunk = plan[i:i + self.N_crowd_fut]
