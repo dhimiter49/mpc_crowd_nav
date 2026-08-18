@@ -22,7 +22,7 @@ class MPCVel(AbstractMPC):
         plan_type: str = "Position",
         uncertainty: str = "",
         radius_crowd: Union[list[float], None] = None,
-        stability_coeff: float = 0.25,
+        stability_coeff: float = 0.,
         horizon_tries: int = 0,
         relax_uncertainty: float = 1.,
         passive_safety: bool = True,
@@ -50,6 +50,8 @@ class MPCVel(AbstractMPC):
         self.plan_type = plan_type
         self.passive_safety = passive_safety
         self.N_control = self.N - 1 if self.passive_safety else self.N
+        if not self.passive_safety:
+            self.N_crowd_fut = self.N_crowd
 
         # (mat)rix to project control (vel)ocities to future (pos)itions
         self.mat_pos_vel = self.make_mat_pos_vel(self.N, self.N_control)
@@ -303,7 +305,10 @@ class MPCVel(AbstractMPC):
         #     0.5 * np.repeat(current_vel, self.N) * self.DT +\
         #     self.mat_pos_vel @ action[:-1].flatten('F')
         self.last_planned_traj = action.copy()
-        self.last_traj = self.traj_from_plan(current_vel)
+        if len(self.last_planned_traj) == self.N:
+            self.last_traj = self.traj_from_plan(current_vel)
+        else:  # if horizon was shortened, then cannot use last control
+            self.last_traj = None
         self.set_action(action, braking)
 
 

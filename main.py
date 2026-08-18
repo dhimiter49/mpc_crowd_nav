@@ -106,7 +106,7 @@ obs_handler = ObsHandler(env_type, n_crowd, obs_noise="-no" in sys.argv)
 render = "-nr" not in sys.argv
 
 N = 21 if "-ss" not in sys.argv else int(sys.argv[sys.argv.index("-ss") + 1])
-M = 20 if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
+M = N if "-ps" not in sys.argv else int(sys.argv[sys.argv.index("-ps") + 1])
 R = 1 if "-rp" not in sys.argv else int(sys.argv[sys.argv.index("-rp") + 1])  # replan
 steps = 1000 if "-st" not in sys.argv else int(sys.argv[sys.argv.index("-st") + 1])
 mult_plan = 1 if "-mp" not in sys.argv else int(sys.argv[sys.argv.index("-mp") + 1])
@@ -227,6 +227,8 @@ ep_count = 0
 ep_step_count = 0
 step_count = 0
 tot_braking_steps = 0
+tot_braking_steps_first_step = 0
+first_step = True
 count = step_count if gen_data else ep_count
 old_braking_flags = False
 braking_steps = np.array([200] * n_agents)  # 200 is too high, no braking traj
@@ -395,6 +397,7 @@ while count < steps:
             # env.set_trajectory(traj)
             actions = control_plan[:max_ep_steps]
             braking_flags[0] = braking_flag
+            tot_braking_steps_first_step += 1 if braking_flag and first_step else 0
             tot_braking_steps += 1 if braking_flag and not old_braking_flags else 0
 
         # take step in the environment
@@ -418,6 +421,7 @@ while count < steps:
                     "_goal_pos": init_obs[4 + n_crowd * 4:6 + n_crowd * 4].copy()
                 }
             )
+        first_step = False
 
 
     # update auxiliary variables
@@ -472,6 +476,7 @@ while count < steps:
         ep_count += 1
         ep_plan = None
         ep_step_count = 0
+        first_step = True
         progress_bar.update(1) if not gen_data else None
     progress_bar.update(1) if gen_data else None
     count = step_count if gen_data else ep_count
@@ -487,6 +492,7 @@ if gen_data:
 print("Mean: ", np.mean(returns))
 print("Number of episodes", ep_count)
 print("Total braking instances: ", tot_braking_steps)
+print("Total braking instances first step: ", tot_braking_steps_first_step)
 print("Stats:")
 (
     col_rate,

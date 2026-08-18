@@ -90,13 +90,13 @@ class AbstractMPC:
             if radius_crowd is not None:
                 self.CONST_DIST_CROWD = np.expand_dims(
                     self.CONST_DIST_CROWD, -1
-                ).repeat(self.N_crowd, -1)
+                ).repeat(self.N_crowd_fut, -1)
             else:
-                self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd)
+                self.CONST_DIST_CROWD = self.CONST_DIST_CROWD * np.ones(self.N_crowd_fut)
             self.CONST_DIST_CROWD += max(
                 self.AGENT_MAX_VEL * self.DT, self.AGENT_MAX_ACC * self.DT ** 2,
                 self.CROWD_MAX_VEL * self.DT, self.CROWD_MAX_ACC * self.DT ** 2
-            ) * np.arange(1, self.N_crowd + 1)
+            ) * np.arange(1, self.N_crowd_fut + 1)
 
         # linearization of the acceleration and velocity limits
         self.circle_lin_sides = 8
@@ -109,6 +109,9 @@ class AbstractMPC:
         self.last_traj = None
         self.pos_horizon = None
         self.last_pos = None
+
+        # self.agent_pos = []
+        # self.crowd_pos = []
 
 
     def get_action(self, plan, obs):
@@ -157,6 +160,9 @@ class AbstractMPC:
     def core_mpc(self, plan, obs):
         pos_plan, vel_plan = plan
         goal, crowd_poss, vel, crowd_vels, walls, radii = obs
+
+        # self.agent_pos.append(self.current_pos)
+        # self.crowd_pos.append(crowd_poss + self.current_pos)
 
         # Read the radii again, maybe they have changed, in that case,
         # update the safety distances
@@ -269,6 +275,8 @@ class AbstractMPC:
                     const_M = np.delete(const_M, del_idx, axis=1)
                     opt_V = np.delete(opt_V, del_idx, axis=0)
                     opt_Q = scipy.sparse.csr_matrix(opt_Q)
+                    if term_const_M is not None:
+                        term_const_M = np.delete(term_const_M, del_idx, axis=1)
 
                 const_M = scipy.sparse.csr_matrix(const_M)
 
@@ -483,7 +491,9 @@ class AbstractMPC:
                     casc_plan[i * self.N:(i + 1) * self.N] = safety_chunk
                 poss_ -= casc_plan
             else:
-                poss_ -= np.array([plan[:self.N], plan[self.N:]]).T
+                poss_ -= np.array([
+                    plan[:self.N_crowd_fut], plan[self.N:self.N + self.N_crowd_fut]
+                ]).T
         if self.last_traj is not None and not self.use_always_plan:
             last_traj = self.last_traj[1:]
             traj_hor = len(last_traj)
@@ -495,7 +505,7 @@ class AbstractMPC:
                 last_traj = np.concatenate([last_traj, [last_traj[-1]]])
                 temp = []
                 for i in range(self.M):
-                    temp.append(last_traj[i:i + self.N])
+                    temp.append(last_traj[i:i + self.N - 1])
                 last_traj = np.concatenate(temp)
 
             poss_ += self.current_pos - last_traj

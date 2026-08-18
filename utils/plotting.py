@@ -4,10 +4,7 @@ import matplotlib.pyplot as plt
 
 def plot_in_time(ctrl, env, dt):
     ctrl[0].agent_pos.append(env.get_wrapper_attr("current_pos").copy())
-    ctrl[0].crowd_pos.append(
-        env.get_wrapper_attr("crowd_pos_vel")[0].copy()[0] +
-        env.get_wrapper_attr("current_pos").copy()
-    )
+    ctrl[0].crowd_pos.append(env.get_wrapper_attr("crowd_pos_vel")[0].copy()[0])
     agent_x = np.array(ctrl[0].agent_pos).copy().reshape(-1, 2)[:, 0].flatten()
     crowd_x = np.array(ctrl[0].crowd_pos).copy().reshape(-1, 2)[:, 0].flatten()
 

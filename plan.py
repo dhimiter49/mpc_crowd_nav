@@ -47,7 +47,7 @@ class Plan:
         vels_steps = int(dist / (self.MAX_VEL * self.DT))
         vels[vels_steps:, :] = np.zeros(2)
         self.time_path[:, :2] = steps
-        self.time_path[:, 2] = np.arange(0, self.N * self.DT, self.DT)
+        self.time_path[:, 2] = np.arange(0, self.N * self.DT - 1e-4, self.DT)
         return np.hstack([steps[:, 0], steps[:, 1]]), np.hstack([vels[:, 0], vels[:, 1]])
 
 
