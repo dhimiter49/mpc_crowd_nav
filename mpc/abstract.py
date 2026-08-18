@@ -481,7 +481,7 @@ class AbstractMPC:
                 plan = np.array([plan[:self.M], plan[self.M:]]).T
                 casc_plan = np.zeros((self.M * self.N_crowd_fut, 2))
                 for i in range(self.M):
-                    if i > self.M - self.N_crwod_fut:
+                    if i > self.M - self.N_crowd_fut:
                         n_missing = i - self.M + self.N_crowd_fut
                         safety_chunk = np.concatenate([
                             plan[i:i + self.N_crowd_fut],
