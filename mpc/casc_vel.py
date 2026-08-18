@@ -329,7 +329,10 @@ class MPCCascVel(MPCVel):
             ]).T
         self.last_planned_traj = action.copy()
         self.last_traj = self.traj_from_plan(current_vel)
-        np.save("full_traj_" + str(self.M) + "_" + str(self.counter) + ".npy", self.last_traj)
+        np.save(
+            "full_traj_" + str(self.M) + "_" + str(self.N) + "_"+
+            str(self.counter) + ".npy", self.last_traj
+        )
         self.counter += 1
         self.set_action(action, braking)
 
