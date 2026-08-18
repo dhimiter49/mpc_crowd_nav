@@ -479,16 +479,17 @@ class AbstractMPC:
         if (self.last_traj is None and self.use_plan) or self.use_always_plan:
             if "Casc" in type(self).__name__:
                 plan = np.array([plan[:self.M], plan[self.M:]]).T
-                casc_plan = np.zeros((self.M * self.N, 2))
+                casc_plan = np.zeros((self.M * self.N_crowd_fut, 2))
                 for i in range(self.M):
-                    if i > self.M - self.N:
-                        n_missing = i - self.M + self.N
+                    if i > self.M - self.N_crowd_fut:
+                        n_missing = i - self.M + self.N_crowd_fut
                         safety_chunk = np.concatenate([
-                            plan[i:i + self.N], np.repeat(plan[-1:], n_missing, axis=0)
+                            plan[i:i + self.N_crowd_fut], np.repeat(plan[-1:], n_missing, axis=0)
                         ])
                     else:
-                        safety_chunk = plan[i:i + self.N]
-                    casc_plan[i * self.N:(i + 1) * self.N] = safety_chunk
+                        safety_chunk = plan[i:i + self.N_crowd_fut]
+                    casc_plan[i * self.N_crowd_fut:(i + 1) * self.N_crowd_fut] =\
+                        safety_chunk
                 poss_ -= casc_plan
             else:
                 poss_ -= np.array([
