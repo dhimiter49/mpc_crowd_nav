@@ -216,11 +216,9 @@ class MPCVel(AbstractMPC):
                 # lower uncertainty in the future for low velocities
                 assert isinstance(crowd_vels, np.ndarray)
                 assert isinstance(dist_to_keep, np.ndarray)
-                speed = np.linalg.norm(crowd_vels[i])
-                step_diff = (
-                    dist_to_keep - np.ones_like(dist_to_keep) * dist_to_keep[0]
-                ) / dist_to_keep * self.relax_uncertainty
-                dist_to_keep *= (1. - step_diff * (1. - speed / self.CROWD_MAX_VEL))
+                step_diff = (dist_to_keep[1] - dist_to_keep[0]) *\
+                    np.arange(1, self.N_crowd_fut + 1)
+                dist_to_keep -= step_diff * self.relax_uncertainty
 
             # constraint formula
             vec_crowd = mat_crowd @ (
