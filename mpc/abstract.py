@@ -194,9 +194,7 @@ class AbstractMPC:
         # Constraints
         const_M, const_b = [], []
         if crowd_poss is not None:
-            crowd_poss = self.calculate_crowd_poss(
-                crowd_poss.reshape(-1, 2), crowd_vels
-            )
+            crowd_poss = self.calculate_crowd_poss(crowd_poss.reshape(-1, 2), crowd_vels)
             self.gen_crowd_const(
                 const_M=const_M,
                 const_b=const_b,
