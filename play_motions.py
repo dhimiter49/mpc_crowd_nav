@@ -158,7 +158,10 @@ for i in range(0, len(motion_data), mult_plan):
         env.get_wrapper_attr("set_trajectory")(plan)
     actions = all_valid_actions[best_motion_idx] if len(sorted_dist) > 0\
         else all_actions[best_motion_idx]
-    p_time = np.where(np.linalg.norm(plan[1:] - plan[-1], axis=-1) == 0)[0][0] * 0.1
+    if len(plan) == 1:
+        p_time = 0.1
+    else:
+        p_time = np.where(np.linalg.norm(plan[1:] - plan[-1], axis=-1) == 0)[0][0] * 0.1
     a_time = 0
     for a in actions:
         a_time += 0.1
