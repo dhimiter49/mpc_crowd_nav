@@ -26,6 +26,7 @@ class MPCCascVel(MPCVel):
         passive_safety: bool = True,
         use_plan: bool = False,
         use_always_plan: bool = False,
+        half_safety: int = -1,
     ):
         super().__init__(
             horizon,
@@ -50,6 +51,7 @@ class MPCCascVel(MPCVel):
         self.plan_type = plan_type
         self.stability_coeff = stability_coeff
         self.passive_safety = passive_safety
+        self.half_safety = half_safety
         self.N_control = self.N - 1 if self.passive_safety else self.N
         self.last_planned_traj = np.zeros((self.M + self.N_control, 2))
 
@@ -221,6 +223,19 @@ class MPCCascVel(MPCVel):
             3
         )
         return np.array(idxs, dtype=int)
+
+
+    def terminal_const(self, _):
+        if self.half_safety == -1:
+            return super().terminal_const()
+        b = np.zeros(self.M * self.N * 2)
+        filter_braking = np.zeros(self.M * self.N)
+        filter_braking[
+            [i for i in range(self.half_safety * self.N) if i % self.N == self.N - 1]
+        ] = 1
+        print(filter_braking.reshape(100, -1))
+        filter_braking = np.concatenate([filter_braking] * 2)
+        return np.diag(filter_braking), b
 
 
     def lin_pos_constraint(self, **kwargs):

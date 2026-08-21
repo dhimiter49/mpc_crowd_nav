@@ -162,6 +162,12 @@ if "-ht" in sys.argv:
 if "-ns" in sys.argv:
     mpc_kwargs["passive_safety"] = False
 
+if "-hs" in sys.argv:
+    mpc_kwargs["passive_safety"] = False
+    ps_steps = int(sys.argv[sys.argv.index("-hs") + 1])
+    assert ps_steps < M
+    mpc_kwargs["half_safety"] = ps_steps  # for cascading
+
 n_agents = n_crowd if "-mci" in sys.argv else 1
 if "-rrt" in sys.argv:
     planner = RRT_Plan(
