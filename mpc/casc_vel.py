@@ -233,7 +233,6 @@ class MPCCascVel(MPCVel):
         filter_braking[
             [i for i in range(self.half_safety * self.N) if i % self.N == self.N - 1]
         ] = 1
-        print(filter_braking.reshape(100, -1))
         filter_braking = np.concatenate([filter_braking] * 2)
         return np.diag(filter_braking), b
 

@@ -165,7 +165,7 @@ if "-ns" in sys.argv:
 if "-hs" in sys.argv:
     mpc_kwargs["passive_safety"] = False
     ps_steps = int(sys.argv[sys.argv.index("-hs") + 1])
-    assert ps_steps < M
+    assert ps_steps <= M
     mpc_kwargs["half_safety"] = ps_steps  # for cascading
 
 n_agents = n_crowd if "-mci" in sys.argv else 1
@@ -183,7 +183,6 @@ ps_entry += str(mpc_kwargs.get("half_safety", ""))
 motions_file_name = str(Path.home()) + RESULTS_DIR + "motions_" + env_str +\
     "_" + mpc_type + "_" + str(N) + "_" + str(M) + "_" + str(R) + "_" + "ps-" +\
     ps_entry + "_" + "mp-" + str(mult_plan) + "_" + plan_str + motions_exp_name + ".npy"
-print(motions_file_name)
 
 
 augment_radius = float(sys.argv[sys.argv.index("-ar") + 1]) if "-ar" in sys.argv else 1.
