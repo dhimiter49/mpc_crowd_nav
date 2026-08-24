@@ -180,16 +180,16 @@ class AbstractMPC:
 
         # Initial RRT solution in case of SQP
         if "SQP" in type(self).__name__ and self.last_sqp_solution is None:
-            if np.all(vel_plan == 0):
-                pos_plan_xy = pos_plan.reshape(-1, 2, order='F')
-                dist = pos_plan_xy[1:] - pos_plan_xy[:-1]
-                vel_plan = np.concatenate([dist / self.DT, np.zeros((1, 2))])
-                vel_plan = vel_plan.flatten('F')
+            # if np.all(vel_plan == 0):
+            #     pos_plan_xy = pos_plan.reshape(-1, 2, order='F')
+            #     dist = pos_plan_xy[1:] - pos_plan_xy[:-1]
+            #     vel_plan = np.concatenate([dist / self.DT, np.zeros((1, 2))])
+            #     vel_plan = vel_plan.flatten('F')
             idxs = np.concatenate([
                 np.arange(self.N_control),
                 np.arange(self.N, self.N + self.N_control)
             ])
-            self.last_sqp_solution = vel_plan[idxs]
+            self.last_sqp_solution = vel_plan[idxs] * 0
 
         # Constraints
         const_M, const_b = [], []
