@@ -505,7 +505,7 @@ class AbstractMPC:
                 last_traj = np.concatenate([last_traj, [last_traj[-1]]])
                 temp = []
                 for i in range(self.M):
-                    temp.append(last_traj[i:i + self.N - 1])
+                    temp.append(last_traj[i:i + self.N_crowd_fut])
                 last_traj = np.concatenate(temp)
 
             poss_ += self.current_pos - last_traj
