@@ -499,6 +499,7 @@ print("Total braking instances first step: ", tot_braking_steps_first_step)
 print("Stats:")
 (
     col_rate,
+    col_rate_passive,
     col_speed,
     col_agent_speed,
     avg_intersect_area,
@@ -518,7 +519,7 @@ if path.is_file():
 with open(path, 'a', newline='') as csvfile:
     fieldnames = [
         'return', 'ttg', 'success_rate',
-        'col_rate', 'col_speed', 'col_agent_speed',
+        'col_rate', 'col_rate_passive', 'col_speed', 'col_agent_speed',
         'col_intersection_area', 'col_intersection_percent',
         'col_severity_index', 'braking_instances', 'freezing_instances'
     ]
@@ -530,6 +531,7 @@ with open(path, 'a', newline='') as csvfile:
         "ttg": avg_ttg,
         "success_rate": success_rate,
         "col_rate": col_rate,
+        "col_rate_passive": col_rate_passive,
         "col_speed": col_speed,
         "col_agent_speed": col_agent_speed,
         "col_intersection_area": avg_intersect_area,
