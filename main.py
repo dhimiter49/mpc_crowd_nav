@@ -518,7 +518,7 @@ if path.is_file():
         has_header = sniffer.has_header(csvfile.read(2048))
 with open(path, 'a', newline='') as csvfile:
     fieldnames = [
-        'return', 'ttg', 'success_rate',
+        'return', 'ttg', 'ttg_to', 'success_rate',
         'col_rate', 'col_rate_passive', 'col_speed', 'col_agent_speed',
         'col_intersection_area', 'col_intersection_percent',
         'col_severity_index', 'braking_instances', 'freezing_instances'
@@ -526,9 +526,13 @@ with open(path, 'a', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
     if not has_header:
         writer.writeheader()
+    max_time = max_ep_steps * DT
+    to_rate = steps - success_rate - col_rate
     writer.writerow({
         "return": np.mean(returns),
         "ttg": avg_ttg,
+        "ttg_to": (avg_ttg * success_rate + max_time * to_rate) /\
+            (success_rate + to_rate),
         "success_rate": success_rate,
         "col_rate": col_rate,
         "col_rate_passive": col_rate_passive,
