@@ -476,13 +476,12 @@ class AbstractMPC:
         poss_ = poss.copy()
         if (self.last_traj is None and self.use_plan) or self.use_always_plan:
             if "Casc" in type(self).__name__:
-                print(plan)
-                max_idx = len(plan)
+                max_idx = len(plan) // 2
                 plan = np.array([plan[:max_idx], plan[max_idx:]]).T
                 casc_plan = np.zeros((self.M * self.N_crowd_fut, 2))
                 for i in range(self.M):
                     if i > max_idx - self.N_crowd_fut:
-                        n_missing = i - self.M + self.N_crowd_fut
+                        n_missing = i - max_idx + self.N_crowd_fut
                         safety_chunk = np.concatenate([
                             plan[i:i + self.N_crowd_fut],
                             np.repeat(plan[-1:], n_missing, axis=0)
