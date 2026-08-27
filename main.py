@@ -349,8 +349,9 @@ while count < steps:
                 "_goal_pos": goal_pos
             }
         )
+        all_steps = min(100, max_ep_steps + N - 1)
         temp_list = np.concatenate([
-            np.arange(max_ep_steps), np.arange(100, 100 + max_ep_steps)
+            np.arange(all_steps), np.arange(100, 100 + all_steps)
         ])
         pos_plan = pos_plan[:,temp_list]
         ep_plan = pos_plan
@@ -365,7 +366,9 @@ while count < steps:
         controller[0].reset() if gen_motion else None
         braking_flags = np.array([False] * n_agents)
         if mpc_type != "simple" or "-rrt" in sys.argv:
-            env.get_wrapper_attr("set_trajectory")(*planner.prepare_plot(p, M))
+            env.get_wrapper_attr("set_trajectory")(
+                *planner.prepare_plot(p,  min(100, M + N - 1))
+            )
         if n_agents > 1:
             actions = []
             output, processes, queues = [], [], []
@@ -467,7 +470,9 @@ while count < steps:
                 motion_act = np.concatenate([
                     motion_act, np.zeros((max_ep_steps - len(motion_act), 2))
                 ]).flatten()
-                p_w_fixed = p.copy()
+                p_w_fixed = p[np.concatenate([
+                    np.arange(M), np.arange(M + N - 1, 2 * M + N - 1)
+                ])]
                 if len(p) < max_ep_steps:
                     p_w_fixed = np.concatenate([
                         p, np.repeat(p[-1].reshape(1, 2), max_ep_steps - len(p), axis=0)

@@ -125,7 +125,10 @@ class MPCCascVel(MPCVel):
                 self.stability_coeff * np.eye(2 * self.M * (self.N_control))
             )
             self.vec_p = lambda __1__, plan, __2__, vel: (
-                -plan + 0.5 * self.DT * np.repeat(vel, self.M)
+                -plan[np.concatenate([
+                    np.arange(self.M),
+                    np.arange(self.M + self.N - 1, 2 * self.M + self.N - 1)
+                ])] + 0.5 * self.DT * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_vel_plan
         elif self.plan_type == "Velocity":
             self.mat_Q = scipy.sparse.csc_matrix(
