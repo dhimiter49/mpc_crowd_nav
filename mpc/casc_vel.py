@@ -186,13 +186,13 @@ class MPCCascVel(MPCVel):
             if ignore:
                 continue
             mat_crowd = np.hstack([
-                np.eye((self.N_crowd_fut) * self.M) * vec[:, 0],
-                np.eye((self.N_crowd_fut) * self.M) * vec[:, 1]
+                np.eye(self.N_crowd_fut * self.M) * vec[:, 0],
+                np.eye(self.N_crowd_fut * self.M) * vec[:, 1]
             ])
 
             # if considering uncertainty update the distance to the crowd
             if isinstance(dist_to_keep, float):
-                dist_to_keep = [dist_to_keep] * (self.N_crowd_fut) * self.M
+                dist_to_keep = [dist_to_keep] * self.N_crowd_fut * self.M
             # relaxing the uncertainty constraint
             if self.uncertainty == "rdist":
                 # lower uncertainty in the future for low velocities
@@ -234,7 +234,6 @@ class MPCCascVel(MPCVel):
         filter_braking[
             [i for i in range(self.half_safety * self.N) if i % self.N == self.N - 1]
         ] = 1
-        print(filter_braking.reshape(100, -1))
         filter_braking = np.concatenate([filter_braking] * 2)
         return np.diag(filter_braking), b
 

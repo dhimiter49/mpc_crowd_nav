@@ -144,7 +144,7 @@ class MPC_SQP_Vel(MPCVel):
 
             # if considering uncertainty update the distance to the crowd
             if isinstance(dist_to_keep, float):
-                dist_to_keep = [dist_to_keep] * self.N_crowd
+                dist_to_keep = [dist_to_keep] * self.N_crowd_fut
             # relaxing the uncertainty constraint
             if self.uncertainty == "rdist":
                 # lower uncertainty in the future for low velocities
@@ -159,21 +159,24 @@ class MPC_SQP_Vel(MPCVel):
             # constraint formula
             if self.lin_crowd_const:
                 mat_crowd = np.hstack([
-                    np.eye(self.N_crowd) * vec[:, 0], np.eye(self.N_crowd) * vec[:, 1]
+                    np.eye(self.N_crowd_fut) * vec[:, 0],
+                    np.eye(self.N_crowd_fut) * vec[:, 1]
                 ])
                 # derivative part
                 vec_crowd = mat_crowd @ self.mat_pos_vel_crowd @ self.last_sqp_solution
                 # old part
                 vec_crowd += mat_crowd @ (
                     -poss.flatten("F") +
-                    0.5 * self.DT * np.repeat(agent_vel, self.N_crowd)
+                    0.5 * self.DT * np.repeat(agent_vel, self.N_crowd_fut)
                 ) - np.array(dist_to_keep)
                 mat_crowd_control = -mat_crowd @ self.mat_pos_vel_crowd
             else:
                 poss = -poss
-                agent_vel_par = np.stack([agent_vel] * self.N).reshape(self.N, 2)
+                agent_vel_par = np.stack([agent_vel] * self.N_crowd_fut).reshape(
+                    self.N_crowd_fut, 2
+                )
                 mat_pos_vel_crowd_xy = self.mat_pos_vel_crowd.reshape(
-                    (self.N, 2, -1), order='F'
+                    (self.N_crowd_fut, 2, -1), order='F'
                 )
                 term_dist_crowd = 2 * np.einsum("ij,ijk->ik", poss, mat_pos_vel_crowd_xy)
                 term_agent_vel = self.DT * np.einsum(

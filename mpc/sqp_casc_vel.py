@@ -144,7 +144,7 @@ class MPC_SQP_CascVel(MPCCascVel):
 
             # if considering uncertainty update the distance to the crowd
             if isinstance(dist_to_keep, float):
-                dist_to_keep = [dist_to_keep] * self.N * self.M
+                dist_to_keep = [dist_to_keep] * self.N_crowd_fut * self.M
             # relaxing the uncertainty constraint
             if self.uncertainty == "rdist":
                 # lower uncertainty in the future for low velocities
@@ -159,20 +159,22 @@ class MPC_SQP_CascVel(MPCCascVel):
             # constraint formula
             if self.lin_crowd_const:
                 mat_crowd = np.hstack([
-                    np.eye(self.N * self.M) *
-                    vec[:, 0], np.eye(self.N * self.M) * vec[:, 1]
+                    np.eye(self.N_crowd_fut * self.M) *
+                    vec[:, 0], np.eye(self.N_crowd_fut * self.M) * vec[:, 1]
                 ])
-                vec_crowd = mat_crowd @ self.casc_mat_pos_vel @ self.last_sqp_solution
+                vec_crowd = mat_crowd @ self.casc_mat_pos_vel_crowd @\
+                    self.last_sqp_solution
                 vec_crowd += mat_crowd @ (
-                    -poss.flatten("F") + 0.5 * self.DT * np.repeat(vel, self.N * self.M)
-                ) - np.array(dist_to_keep)
-                mat_crowd_control = -mat_crowd @ self.casc_mat_pos_vel
+                    -poss.flatten("F") + 0.5 * self.DT * np.repeat(
+                    vel, self.N_crowd_fut * self.M
+                )) - np.array(dist_to_keep)
+                mat_crowd_control = -mat_crowd @ self.casc_mat_pos_vel_crowd
             else:
                 poss = -poss
-                agent_vel_par = np.stack([vel] * self.N * self.M)\
-                    .reshape(self.N * self.M, 2)
-                mat_pos_vel_xy = self.casc_mat_pos_vel.reshape(
-                    (self.N * self.M, 2, -1), order='F'
+                agent_vel_par = np.stack([vel] * self.N_crowd_fut * self.M)\
+                    .reshape(self.N_crowd_fut * self.M, 2)
+                mat_pos_vel_xy = self.casc_mat_pos_vel_crowd.reshape(
+                    (self.N_crowd_fut * self.M, 2, -1), order='F'
                 )
                 term_dist_crowd = 2 * np.einsum("ij,ijk->ik", poss, mat_pos_vel_xy)
                 term_agent_vel = self.DT * np.einsum(
