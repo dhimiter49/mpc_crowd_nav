@@ -471,7 +471,7 @@ while count < steps:
                     motion_act, np.zeros((max_ep_steps - len(motion_act), 2))
                 ]).flatten()
                 p_w_fixed = p[np.concatenate([
-                    np.arange(M), np.arange(M + N - 1, 2 * M + N - 1)
+                    np.arange(M), np.arange(len(p) // 2, len(p) // 2 + M)
                 ])]
                 if len(p) < max_ep_steps:
                     p_w_fixed = np.concatenate([

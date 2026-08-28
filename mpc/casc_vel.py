@@ -127,7 +127,7 @@ class MPCCascVel(MPCVel):
             self.vec_p = lambda __1__, plan, __2__, vel: (
                 -plan[np.concatenate([
                     np.arange(self.M),
-                    np.arange(self.M + self.N - 1, 2 * self.M + self.N - 1)
+                    np.arange(len(plan) // 2, len(plan) // 2 + self.M)
                 ])] + 0.5 * self.DT * np.repeat(vel, self.M)
             ).T @ self.casc_mat_pos_vel_plan
         elif self.plan_type == "Velocity":
